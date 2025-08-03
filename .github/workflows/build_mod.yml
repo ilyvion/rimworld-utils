@@ -34,7 +34,7 @@ on:
     outputs:
       artifact_name:
         description: "Name of the artifact uploaded"
-        value: ${{ inputs.mod_name }}-${{ inputs.artifact-suffix }}
+        value: ${{ inputs.mod_name }}-${{ inputs.artifact_suffix }}
 
 jobs:
   build:
@@ -58,6 +58,7 @@ jobs:
           done
 
       - name: Generate versions directory list
+        id: directory_list
         shell: bash
         run: |
           mapfile -t rw_versions <<< "${{ inputs.rw_versions }}"
@@ -65,17 +66,17 @@ jobs:
           for rw_version in "${rw_versions[@]}"; do
             mod_folders="$mod_folders $rw_version"
           done
-          echo "mod_folders=$mod_folders" >> $GITHUB_ENV
+          echo "mod_folders=$mod_folders" >> $GITHUB_OUTPUT
 
       - name: Upload Mod Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ inputs.mod_name }}-${{ inputs.artifact-suffix }}
+          name: ${{ inputs.mod_name }}-${{ inputs.artifact_suffix }}
           path: |
             ${{ inputs.extra_files }}
             About/
             Common/
-            ${{ env.mod_folders }}
+            ${{ steps.directory_list.outputs.mod_folders }}
             ${{ inputs.license_files }}
             README.md
             CHANGELOG.md
