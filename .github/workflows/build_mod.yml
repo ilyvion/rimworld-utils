@@ -1,0 +1,86 @@
+name: Build Mod Workflow
+description: This workflow builds a RimWorld mod and prepares it for release, including uploading to GitHub artifacts.
+
+on:
+  workflow_call:
+    inputs:
+      mod_name:
+        type: "string"
+        description: "Name of the mod (used for solution and artifact names)"
+        required: true
+      rw_versions:
+        type: "string"
+        description: "RimWorld versions to build for, separated by space (e.g., '1.3 1.4 1.5 1.6')"
+        required: true
+      artifact_suffix:
+        required: true
+        description: "Suffix for the artifact name (e.g., 'Release' or '$ {{ github.sha }}')"
+        type: string
+      solution_configuration:
+        type: "string"
+        description: "Solution configuration to build"
+        default: "Release"
+        required: false
+      license_files:
+        type: "string"
+        description: "List of license files to include in the artifact, separated by space (e.g., 'LICENSE.txt LICENSE.md')"
+        default: "LICENSE"
+        required: false
+      extra_files:
+        type: "string"
+        description: "List of extra files to include in the artifact, separated by space (e.g., 'README.md CHANGELOG.md')"
+        default: ""
+        required: false
+    outputs:
+      artifact_name:
+        description: "Name of the artifact uploaded"
+        value: ${{ inputs.mod_name }}-${{ inputs.artifact-suffix }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Build Mod
+        shell: bash
+        run: |
+          mapfile -t rw_versions <<< "${{ inputs.rw_versions }}"
+          for rw_version in "${rw_versions[@]}"; do
+            echo "Building for RimWorld version: $rw_version"
+            dotnet build --property "RimWorldVersion=$rw_version" --configuration "${{ inputs.solution_configuration }}" "${{ inputs.mod_name }}.sln"
+          done
+
+      - name: Generate versions directory list
+        shell: bash
+        run: |
+          mapfile -t rw_versions <<< "${{ inputs.rw_versions }}"
+          mod_folders=""
+          for rw_version in "${rw_versions[@]}"; do
+            mod_folders="$mod_folders $rw_version"
+          done
+          echo "mod_folders=$mod_folders" >> $GITHUB_ENV
+
+      - name: Upload Mod Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.mod_name }}-${{ inputs.artifact-suffix }}
+          path: |
+            ${{ inputs.extra_files }}
+            About/
+            Common/
+            ${{ env.mod_folders }}
+            ${{ inputs.license_files }}
+            README.md
+            CHANGELOG.md
+            LoadFolders.xml
+            !**/.*
+            !About/*.pdn
+            !About/*.svg
+            !About/*.ttf
