@@ -42,7 +42,10 @@ get_script_path() {
 CONFIG_FILE="./.vscode/build_config.sh"
 
 # Define allowed variables
-ALLOWED_VARS=(CONFIGURATION MOD_NAME TARGET RIMWORLD_VERSION EXTRA_FILES SKIP_BUILD)
+ALLOWED_VARS=(
+    CONFIGURATION MOD_NAME TARGET RIMWORLD_VERSION SKIP_BUILD EXTRA_FILES
+    EXTRA_RW_1_6_FILES EXTRA_RW_1_5_FILES EXTRA_RW_1_4_FILES EXTRA_RW_1_3_FILES
+)
 
 # Source config in a subshell so it doesn't pollute our environment
 if [[ -f "$CONFIG_FILE" ]]; then
@@ -65,10 +68,16 @@ else
 fi
 
 # Ensure required variables are set or given default values
-SKIP_BUILD="${SKIP_BUILD:-false}"
 CONFIGURATION="${CONFIGURATION:-Debug}"
-RIMWORLD_VERSION="${RIMWORLD_VERSION:-${1:-1.6}}"
 : "${MOD_NAME:?MOD_NAME is not set}"
+TARGET="${TARGET:-$HOME/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/RimWorld/Mods/$MOD_NAME}"
+RIMWORLD_VERSION="${RIMWORLD_VERSION:-${1:-1.6}}"
+SKIP_BUILD="${SKIP_BUILD:-false}"
+EXTRA_FILES=("${EXTRA_FILES[@]:-}")
+EXTRA_RW_1_6_FILES=("${EXTRA_RW_1_6_FILES[@]:-}")
+EXTRA_RW_1_5_FILES=("${EXTRA_RW_1_5_FILES[@]:-}")
+EXTRA_RW_1_4_FILES=("${EXTRA_RW_1_4_FILES[@]:-}")
+EXTRA_RW_1_3_FILES=("${EXTRA_RW_1_3_FILES[@]:-}")
 
 case "${SKIP_BUILD,,}" in
     true|1|yes|on)
@@ -77,7 +86,6 @@ case "${SKIP_BUILD,,}" in
         ;;
 esac
 
-TARGET="$HOME/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/RimWorld/Mods/$MOD_NAME"
 
 mkdir -p .savedatafolder/$RIMWORLD_VERSION
 
@@ -100,7 +108,18 @@ for file in "${EXTRA_FILES[@]}"; do
         mkdir -p "$(dirname "$dest")"
         maybe_copy "$file" "$dest"
     else
-        echo "Warning: Extra file '$file' does not exist, skipping."
+        echo "Warning: Extra file '$file' from 'EXTRA_FILES' does not exist, skipping."
+    fi
+done
+EXTRA_RW_VERSION_FILES="EXTRA_RW_${RIMWORLD_VERSION//./_}_FILES"
+EXTRA_RW_VERSION_FILES_REF="$EXTRA_RW_VERSION_FILES[@]"
+for file in "${!EXTRA_RW_VERSION_FILES_REF}"; do
+    if [[ -e "$file" ]]; then
+        dest="$TARGET/$file"
+        mkdir -p "$(dirname "$dest")"
+        maybe_copy "$file" "$dest"
+    else
+        echo "Warning: Extra RW version ${RIMWORLD_VERSION} file '$file' from '${EXTRA_RW_VERSION_FILES}' does not exist, skipping."
     fi
 done
 maybe_copy README.md "$TARGET"
