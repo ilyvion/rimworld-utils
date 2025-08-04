@@ -43,10 +43,26 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Post-Checkout Repository Hook
+        uses: ./.github/build_hooks/post_checkout_hook
+        if: ${{ hashFiles('./.github/build_hooks/post_checkout_hook/action.yml') != '' }}
+
+      - name: Pre-Setup Dotnet Hook
+        uses: ./.github/build_hooks/pre_setup_dotnet_hook
+        if: ${{ hashFiles('./.github/build_hooks/pre_setup_dotnet_hook/action.yml') != '' }}
+
       - name: Setup Dotnet
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 9.0.x
+
+      - name: Post-Setup Dotnet Hook
+        uses: ./.github/build_hooks/post_setup_dotnet_hook
+        if: ${{ hashFiles('./.github/build_hooks/post_setup_dotnet_hook/action.yml') != '' }}
+
+      - name: Pre-Build Mod Hook
+        uses: ./.github/build_hooks/pre_build_mod_hook
+        if: ${{ hashFiles('./.github/build_hooks/pre_build_mod_hook/action.yml') != '' }}
 
       - name: Build Mod
         shell: bash
@@ -56,6 +72,14 @@ jobs:
             echo "Building for RimWorld version: $rw_version"
             dotnet build --property "RimWorldVersion=$rw_version" --configuration "${{ inputs.solution_configuration }}" "${{ inputs.mod_name }}.sln"
           done
+
+      - name: Post-Build Mod Hook
+        uses: ./.github/build_hooks/post_build_mod_hook
+        if: ${{ hashFiles('./.github/build_hooks/post_build_mod_hook/action.yml') != '' }}
+
+      - name: Pre-Generate Versions Directory List Hook
+        uses: ./.github/build_hooks/pre_generate_versions_directory_list_hook
+        if: ${{ hashFiles('./.github/build_hooks/pre_generate_versions_directory_list_hook/action.yml') != '' }}
 
       - name: Generate versions directory list
         id: directory_list
@@ -67,6 +91,14 @@ jobs:
             printf "%s\n" "${rw_versions[@]}"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Post-Generate Versions Directory List Hook
+        uses: ./.github/build_hooks/post_generate_versions_directory_list_hook
+        if: ${{ hashFiles('./.github/build_hooks/post_generate_versions_directory_list_hook/action.yml') != '' }}
+
+      - name: Pre-Upload Mod Artifacts Hook
+        uses: ./.github/build_hooks/pre_upload_mod_artifacts_hook
+        if: ${{ hashFiles('./.github/build_hooks/pre_upload_mod_artifacts_hook/action.yml') != '' }}
 
       - name: Upload Mod Artifacts
         uses: actions/upload-artifact@v4
@@ -85,3 +117,7 @@ jobs:
             !About/*.pdn
             !About/*.svg
             !About/*.ttf
+
+      - name: Post-Upload Mod Artifacts Hook
+        uses: ./.github/build_hooks/post_upload_mod_artifacts_hook
+        if: ${{ hashFiles('./.github/build_hooks/post_upload_mod_artifacts_hook/action.yml') != '' }}
