@@ -62,11 +62,11 @@ jobs:
         shell: bash
         run: |
           mapfile -t rw_versions <<< "${{ inputs.rw_versions }}"
-          mod_folders=""
-          for rw_version in "${rw_versions[@]}"; do
-            mod_folders="$mod_folders $rw_version"
-          done
-          echo "mod_folders=$mod_folders" >> $GITHUB_OUTPUT
+          {
+            echo "mod_folders<<EOF"
+            printf "%s\n" "${rw_versions[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Upload Mod Artifacts
         uses: actions/upload-artifact@v4
