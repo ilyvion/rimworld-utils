@@ -31,6 +31,16 @@ on:
         description: "List of extra files to include in the artifact, separated by space (e.g., 'README.md CHANGELOG.md')"
         default: ""
         required: false
+      project_dependencies_base_path:
+        type: "string"
+        description: "Base path for project dependencies, used to resolve paths to project dependencies in the project files"
+        default: "..\\.."
+        required: false
+      steam_workshop_folder_path:
+        type: "string"
+        description: "Base path for the Steam Workshop folder, used to resolve paths to the Steam Workshop folder in the project files"
+        default: "..\\..\\.deps\\refs"
+        required: false
     outputs:
       artifact_name:
         description: "Name of the artifact uploaded"
@@ -70,7 +80,12 @@ jobs:
           mapfile -t rw_versions <<< "${{ inputs.rw_versions }}"
           for rw_version in "${rw_versions[@]}"; do
             echo "Building for RimWorld version: $rw_version"
-            dotnet build --property "RimWorldVersion=$rw_version" --configuration "${{ inputs.solution_configuration }}" "${{ inputs.mod_name }}.sln"
+            dotnet build \
+            --property "RimWorldVersion=$rw_version"\
+            --property "ProjectDependenciesBasePath=${{ inputs.project_dependencies_base_path }}"\
+            --property "RimWorldSteamWorkshopFolderPath=${{ inputs.steam_workshop_folder_path }}"\
+            --configuration "${{ inputs.solution_configuration }}" \
+            "${{ inputs.mod_name }}.sln"
           done
 
       - name: Post-Build Mod Hook
