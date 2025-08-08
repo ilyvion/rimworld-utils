@@ -74,10 +74,6 @@ TARGET="${TARGET:-$HOME/.var/app/com.valvesoftware.Steam/.local/share/Steam/stea
 RIMWORLD_VERSION="${RIMWORLD_VERSION:-${1:-1.6}}"
 SKIP_BUILD="${SKIP_BUILD:-false}"
 EXTRA_FILES=("${EXTRA_FILES[@]:-}")
-EXTRA_RW_1_6_FILES=("${EXTRA_RW_1_6_FILES[@]:-}")
-EXTRA_RW_1_5_FILES=("${EXTRA_RW_1_5_FILES[@]:-}")
-EXTRA_RW_1_4_FILES=("${EXTRA_RW_1_4_FILES[@]:-}")
-EXTRA_RW_1_3_FILES=("${EXTRA_RW_1_3_FILES[@]:-}")
 
 case "${SKIP_BUILD,,}" in
     true|1|yes|on)
@@ -90,7 +86,10 @@ esac
 mkdir -p .savedatafolder/$RIMWORLD_VERSION
 
 # Build the project
-dotnet build --configuration "$CONFIGURATION" --property "RimWorldVersion=$RIMWORLD_VERSION" "$MOD_NAME.sln"
+dotnet build --configuration "$CONFIGURATION" \
+    --property "RimWorldVersion=$RIMWORLD_VERSION" \
+    --property "EnforceCodeStyleInBuild=true" \
+    "$MOD_NAME.sln"
 
 # remove target mod folder
 rm -rf "$TARGET"
@@ -102,6 +101,8 @@ maybe_copy Common "$TARGET/Common"
 rsync -av --exclude='*.pdn' --exclude='*.xcf' --exclude='*.svg' --exclude='*.ttf' About/ "$TARGET/About"
 maybe_copy CHANGELOG.md "$TARGET"
 maybe_copy LICENSE "$TARGET"
+maybe_copy README.md "$TARGET"
+maybe_copy LoadFolders.xml "$TARGET"
 for file in "${EXTRA_FILES[@]}"; do
     if [[ -e "$file" ]]; then
         dest="$TARGET/$file"
@@ -122,5 +123,3 @@ for file in "${!EXTRA_RW_VERSION_FILES_REF}"; do
         echo "Warning: Extra RW version ${RIMWORLD_VERSION} file '$file' from '${EXTRA_RW_VERSION_FILES}' does not exist, skipping."
     fi
 done
-maybe_copy README.md "$TARGET"
-maybe_copy LoadFolders.xml "$TARGET"
