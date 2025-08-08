@@ -25,7 +25,29 @@
             "cwd": "${workspaceFolder}",
             "console": "internalConsole",
             "internalConsoleOptions": "neverOpen",
-            "stopAtEntry": true
+            "stopAtEntry": false
+        },
+        {
+            "name": "Rimworld",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build ${input:rimWorldVersion}",
+            "env": {
+                "HARMONY_LOG_FILE": "${workspaceFolder}/.savedatafolder/${input:rimWorldVersion}/Harmony.log"
+            },
+            "args": [
+                "--host",
+                "flatpak",
+                "run",
+                "--filesystem=${workspaceFolder}",
+                "--command=/home/alex/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/RimWorld/RimWorldLinux",
+                "com.valvesoftware.Steam"
+            ],
+            "program": "flatpak-spawn",
+            "cwd": "${workspaceFolder}",
+            "console": "internalConsole",
+            "internalConsoleOptions": "neverOpen",
+            "stopAtEntry": false
         }
     ],
     "inputs": [
