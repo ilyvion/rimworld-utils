@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# --- Check for --yes flag ---
+auto_yes="false"
+args=()
+for arg in "$@"; do
+    if [[ "$arg" == "--yes" ]]; then
+        auto_yes="true"
+    else
+        args+=("$arg")
+    fi
+done
+set -- "${args[@]}"
+
 # --- Don't allow staged changes ---
 if ! git diff --cached --quiet; then
     echo "There are already staged changes. Please commit or unstage them first."
@@ -20,7 +32,7 @@ old_version=$(grep -oPm1 '(?<=<VersionPrefix>)[^<]+' "$props_file") || {
 
 # --- Require new version ---
 if [[ $# -lt 1 ]]; then
-    echo "Usage: $0 <new-version>"
+    echo "Usage: $0 <new-version> [--yes]"
     echo "Current version is: $old_version"
     exit 1
 fi
@@ -28,6 +40,21 @@ new_version="$1"
 
 # --- Today date ---
 today=$(date +%Y-%m-%d)
+
+# --- Pre-flight: check if tag exists ---
+overwrite_tag="false"
+if git rev-parse -q --verify "refs/tags/v${new_version}" >/dev/null; then
+    if [[ "$auto_yes" == "true" ]]; then
+        overwrite_tag="true"
+        echo "Tag v${new_version} already exists. Auto-overwriting (--yes given)."
+    else
+        read -r -p "Tag v${new_version} already exists. Overwrite? [y/N] " ans
+        case "$ans" in
+            [yY]|[yY][eE][sS]) overwrite_tag="true" ;;
+            *) echo "Aborting."; exit 1 ;;
+        esac
+    fi
+fi
 
 echo "Bumping version: $old_version → $new_version ($today)"
 
@@ -92,11 +119,17 @@ else
     exit 1
 fi
 
-# --- Git commit ---
+# --- Commit only intended files ---
 git add "$about_file" "$props_file" "$changelog_file"
 git commit -m "chore: prepare for v${new_version} release"
 
 # --- Signed tag ---
+# --- delete existing tag if user approved overwrite, then re-tag signed ---
+if [[ "$overwrite_tag" == "true" ]]; then
+    git tag -d "v${new_version}" >/dev/null
+fi
 git tag -s "v${new_version}" -m "Release v${new_version}"
 
 echo "Version bump complete, committed, and tagged."
+echo "Review the commit and tag; push when ready:"
+echo "  git push --follow-tags"
