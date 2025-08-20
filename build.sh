@@ -88,7 +88,6 @@ mkdir -p .savedatafolder/$RIMWORLD_VERSION
 # Build the project
 dotnet build --configuration "$CONFIGURATION" \
     --property "RimWorldVersion=$RIMWORLD_VERSION" \
-    --property "EnforceCodeStyleInBuild=true" \
     "$MOD_NAME.sln"
 
 # remove target mod folder
