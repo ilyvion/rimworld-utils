@@ -9,14 +9,12 @@
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build ${input:rimWorldVersion}",
-            "env": {
-                "HARMONY_LOG_FILE": "${workspaceFolder}/.savedatafolder/${input:rimWorldVersion}/Harmony.log"
-            },
             "args": [
                 "--host",
                 "flatpak",
                 "run",
                 "--filesystem=${workspaceFolder}",
+                "--env=HARMONY_LOG_FILE=${workspaceFolder}/.savedatafolder/${input:rimWorldVersion}/Harmony.log",
                 "--command=/home/alex/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/RimWorld/RimWorldLinux",
                 "com.valvesoftware.Steam",
                 "-savedatafolder=${workspaceFolder}/.savedatafolder/${input:rimWorldVersion}",
@@ -42,8 +40,11 @@
                 "flatpak",
                 "run",
                 "--filesystem=${workspaceFolder}",
+                "--env=HARMONY_LOG_FILE=${workspaceFolder}/.savedatafolder/${input:rimWorldVersion}/Harmony.log",
                 "--command=/home/alex/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/RimWorld/RimWorldLinux",
-                "com.valvesoftware.Steam"
+                "com.valvesoftware.Steam",
+                "-logfile",
+                "${workspaceFolder}/.savedatafolder/${input:rimWorldVersion}/Player.log"
             ],
             "program": "flatpak-spawn",
             "cwd": "${workspaceFolder}",
