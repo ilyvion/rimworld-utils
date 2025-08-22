@@ -85,6 +85,10 @@ esac
 
 mkdir -p .savedatafolder/$RIMWORLD_VERSION
 
+if [[ -e ".deps" ]]; then
+    export RimWorldSteamWorkshopFolderPath="$(pwd)/.deps/refs"
+fi
+
 # Build the project
 dotnet build --configuration "$CONFIGURATION" \
     --property "RimWorldVersion=$RIMWORLD_VERSION" \
