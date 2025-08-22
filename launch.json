@@ -19,7 +19,9 @@
                 "--filesystem=${workspaceFolder}",
                 "--command=/home/alex/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/RimWorld/RimWorldLinux",
                 "com.valvesoftware.Steam",
-                "-savedatafolder=${workspaceFolder}/.savedatafolder/${input:rimWorldVersion}"
+                "-savedatafolder=${workspaceFolder}/.savedatafolder/${input:rimWorldVersion}",
+                "-logfile",
+                "${workspaceFolder}/.savedatafolder/${input:rimWorldVersion}/Player.log"
             ],
             "program": "flatpak-spawn",
             "cwd": "${workspaceFolder}",
