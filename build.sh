@@ -94,8 +94,9 @@ dotnet build --configuration "$CONFIGURATION" \
     --property "RimWorldVersion=$RIMWORLD_VERSION" \
     "$MOD_NAME.sln"
 
-# remove target mod folder
-rm -rf "$TARGET"
+# remove mod folder
+mkdir -p "$TARGET"
+find "$TARGET" -mindepth 1 -delete
 
 # copy mod files
 mkdir -p "$TARGET"
