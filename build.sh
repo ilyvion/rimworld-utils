@@ -127,3 +127,7 @@ for file in "${!EXTRA_RW_VERSION_FILES_REF}"; do
         echo "Warning: Extra RW version ${RIMWORLD_VERSION} file '$file' from '${EXTRA_RW_VERSION_FILES}' does not exist, skipping."
     fi
 done
+
+for file in $(find $TARGET -iname '*.dll'); do
+    touch "$file.hotswap"
+done
