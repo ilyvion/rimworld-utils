@@ -54,6 +54,7 @@ dotnet_diagnostic.IDE0021.severity = warning
 
 # Use expression body for methods
 dotnet_diagnostic.IDE0022.severity = warning
+csharp_style_expression_bodied_methods = true:warning
 
 # Use expression body for conversion operators
 dotnet_diagnostic.IDE0023.severity = warning
