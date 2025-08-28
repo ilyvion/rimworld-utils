@@ -1,4 +1,12 @@
 <Project>
+    <!-- Feature toggles / pins (override per project/CI if needed) -->
+    <PropertyGroup>
+        <!-- TODO: When nearly all projects use it, switch this to true -->
+        <UseLaboratory>false</UseLaboratory>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(UseLaboratory)'=='true'">
+        <DefineConstants>USE_LABORATORY</DefineConstants>
+    </PropertyGroup>
     <PropertyGroup>
         <OutputType>Library</OutputType>
         <TargetFramework>net481</TargetFramework>
@@ -62,6 +70,11 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
+    </ItemGroup>
+    <ItemGroup Condition="'$(UseLaboratory)'=='true'">
+        <ProjectReference Include="$(ProjectDependenciesBasePath)\ilyvion.Laboratory\ilyvion.Laboratory\ilyvion.Laboratory.csproj">
+            <Private>false</Private>
+        </ProjectReference>
     </ItemGroup>
     <ItemGroup>
         <Compile Update="**/*.cs">
