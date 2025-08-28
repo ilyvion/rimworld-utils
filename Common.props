@@ -11,7 +11,7 @@
         <OutputType>Library</OutputType>
         <TargetFramework>net481</TargetFramework>
         <PlatformTarget>x64</PlatformTarget>
-        <LangVersion>13.0</LangVersion>
+        <LangVersion>latest</LangVersion>
 
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
@@ -21,7 +21,7 @@
         <EnableNETAnalyzers>True</EnableNETAnalyzers>
         <AnalysisLevel>preview-all</AnalysisLevel>
         <ErrorReport>prompt</ErrorReport>
-        <WarningLevel>5</WarningLevel>
+        <WarningLevel>9999</WarningLevel>
 
         <NoWarn>IDE0160</NoWarn>
 
