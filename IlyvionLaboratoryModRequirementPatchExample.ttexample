@@ -1,0 +1,7 @@
+<#@ template language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ output extension=".cs" #>
+<#@ include file="../../../../rimworld-utils/IlyvionLaboratoryModRequirementPatch.ttinclude" #>
+#nullable enable
+
+<# ProduceIlyvionLaboratoryModRequirementPatchFor("Mod Name", "ModNamespace", "ModClassName"); #>
