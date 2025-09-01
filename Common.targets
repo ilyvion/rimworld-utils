@@ -74,4 +74,13 @@
         <Delete Files="@(TextTemplate -> '%(OutputPath)')" />
         <RemoveDir Directories="$(T4OutputDir)" Condition="Exists('$(T4OutputDir)')" />
     </Target>
+    <PropertyGroup
+        Condition="
+            '$(SupportedRimWorldVersions)' != '' And
+            ! $([System.String]::Copy(';$(SupportedRimWorldVersions);')
+                .Contains(';$([MSBuild]::Escape($(RimWorldVersion)));'))
+  "
+    >
+        <BuildDependsOn></BuildDependsOn>
+    </PropertyGroup>
 </Project>
