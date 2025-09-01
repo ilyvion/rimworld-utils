@@ -9,6 +9,11 @@ mkdir -p "$SCRIPT_DIR/backups"
 for original in "$SCRIPT_DIR/originals"/*/; do
     MOD_NAME=$(basename "$original")
 
+    if [ ! -d "$RIMWORLD_STEAM_WORKSHOP_FOLDER_PATH/$MOD_NAME" ]; then
+        echo "Mod '$MOD_NAME' not found in Steam Workshop folder, skipping."
+        continue
+    fi
+
     # Remove old backup, if any
     rm -rf "$SCRIPT_DIR/backups/$MOD_NAME"
 
