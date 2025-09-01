@@ -1,0 +1,36 @@
+<#
+    void IlyvionLaboratoryModSharedStatic(
+        string modBaseNamespace,
+        string modClassName,
+        string classVisibility = "internal")
+    {
+#>
+namespace <#=modBaseNamespace#>;
+
+<#=classVisibility#> partial class <#=modClassName#> : IlyvionMod
+{
+#pragma warning disable CS8618 // Set by constructor
+    /// <summary>
+    /// Gets the singleton instance of the <see cref="<#=modClassName#>"/> class.
+    /// </summary>
+    public static <#=modClassName#> Instance { get; private set; }
+
+#pragma warning restore CS8618
+
+    /// <summary>
+    /// Gets the package ID of the mod.
+    /// </summary>
+    public static string PackageId => Instance!.Content.PackageId;
+
+    public <#=modClassName#>(ModContentPack content)
+        : base(content)
+    {
+        Instance = this;
+        Construct();
+    }
+
+    partial void Construct();
+}
+<#
+    }
+#>
