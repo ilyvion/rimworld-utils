@@ -12,26 +12,24 @@
         <TargetFramework>net481</TargetFramework>
         <PlatformTarget>x64</PlatformTarget>
         <LangVersion>latest</LangVersion>
-
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
-
         <EnableNETAnalyzers>True</EnableNETAnalyzers>
         <AnalysisLevel>preview-all</AnalysisLevel>
         <ErrorReport>prompt</ErrorReport>
         <WarningLevel>9999</WarningLevel>
-
-        <NoWarn>IDE0160</NoWarn>
-
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     </PropertyGroup>
     <PropertyGroup>
         <RimWorldVersion Condition="'$(RimWorldVersion)'==''">1.6</RimWorldVersion>
-        <ProjectDependenciesBasePath Condition="'$(ProjectDependenciesBasePath)'==''">..\..\..</ProjectDependenciesBasePath>
-        <RimWorldSteamWorkshopFolderPath Condition="'$(RimWorldSteamWorkshopFolderPath)'==''">..\..\.deps\refs</RimWorldSteamWorkshopFolderPath>
-
+        <ProjectDependenciesBasePath Condition="'$(ProjectDependenciesBasePath)'==''"
+            >..\..\..</ProjectDependenciesBasePath
+        >
+        <RimWorldSteamWorkshopFolderPath Condition="'$(RimWorldSteamWorkshopFolderPath)'==''"
+            >..\..\.deps\refs</RimWorldSteamWorkshopFolderPath
+        >
         <DefaultItemExcludes>$(DefaultItemExcludes);obj/**</DefaultItemExcludes>
         <BaseIntermediateOutputPath>obj/$(RimWorldVersion)</BaseIntermediateOutputPath>
     </PropertyGroup>
@@ -100,11 +98,10 @@
         <Compile Update="**/*.cs">
             <Features>strict</Features>
         </Compile>
-        <Compile
-            Include="$(MSBuildThisFileDirectory)globalusings.cs"
-            Link="globalusings.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)globalusings.cs" Link="globalusings.cs" />
         <Compile
             Include="$(MSBuildThisFileDirectory)GlobalSuppressions.cs"
-            Link="GlobalSuppressions.cs" />
+            Link="GlobalSuppressions.cs"
+        />
     </ItemGroup>
 </Project>

@@ -5,20 +5,22 @@
         <T4Version>3.0.0</T4Version>
         <T4OutputDir>$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)\t4\</T4OutputDir>
     </PropertyGroup>
-
     <ItemGroup Condition="'$(T4Enabled)'=='true'">
         <PackageDownload Include="dotnet-t4" Version="[$(T4Version)]" />
     </ItemGroup>
-
     <!-- Resolve the DLL path under the packages folder (probe net8 then net6) -->
     <PropertyGroup Condition="'$(T4Enabled)'=='true'">
         <T4PkgToolsDir>$(NuGetPackageRoot)dotnet-t4/$(T4Version)/tools/</T4PkgToolsDir>
-        <T4Dll Condition="Exists('$(T4PkgToolsDir)net6.0/any/t4.dll')">$(T4PkgToolsDir)net6.0/any/t4.dll</T4Dll>
-        <T4Cli>dotnet &quot;$(T4Dll)&quot;</T4Cli>
+        <T4Dll Condition="Exists('$(T4PkgToolsDir)net6.0/any/t4.dll')"
+            >$(T4PkgToolsDir)net6.0/any/t4.dll</T4Dll
+        >
+        <T4Cli>dotnet "$(T4Dll)"</T4Cli>
     </PropertyGroup>
-
     <ItemGroup Condition="'$(T4Enabled)'=='true'">
-        <TextTemplate Include="**/*.tt" Exclude="$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)\**;$(MSBuildProjectDirectory)\$(BaseOutputPath)\**">
+        <TextTemplate
+            Include="**/*.tt"
+            Exclude="$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)\**;$(MSBuildProjectDirectory)\$(BaseOutputPath)\**"
+        >
             <!-- Directory for this template's output -->
             <OutputDir>$([MSBuild]::EnsureTrailingSlash('$(T4OutputDir)%(RecursiveDir)'))</OutputDir>
             <!-- Full path to the generated file -->
@@ -27,9 +29,11 @@
             <!-- <AdditionalInputs>Some\Shared.ttinclude;Another\file.txt</AdditionalInputs> -->
         </TextTemplate>
         <!-- Coarse dependency tracking: any .ttinclude change retriggers all -->
-        <T4Include Include="**/*.ttinclude" Exclude="$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)\**;$(MSBuildProjectDirectory)\$(BaseOutputPath)\**" />
+        <T4Include
+            Include="**/*.ttinclude"
+            Exclude="$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)\**;$(MSBuildProjectDirectory)\$(BaseOutputPath)\**"
+        />
     </ItemGroup>
-
     <!-- Kill VS design-time custom tool (prevents Test.txt next to Test.tt) -->
     <ItemGroup Condition="'$(T4Enabled)'=='true'">
         <None Update="**/*.tt">
@@ -37,41 +41,40 @@
             <LastGenOutput></LastGenOutput>
         </None>
     </ItemGroup>
-
     <!-- Transform before CoreCompile; do nothing if there are no templates -->
-    <Target Name="TransformTextTemplates"
+    <Target
+        Name="TransformTextTemplates"
         BeforeTargets="CoreCompile"
         Condition="'$(T4Enabled)'=='true' and '@(TextTemplate)' != ''"
-        Inputs="@(TextTemplate -> '%(FullPath)');@(TextTemplate -> '%(AdditionalInputs)');@(T4Include -> '%(FullPath)')"
-        Outputs="@(TextTemplate -> '%(OutputPath)')">
-
+        Inputs="@(TextTemplate -&gt; '%(FullPath)');@(TextTemplate -&gt; '%(AdditionalInputs)');@(T4Include -&gt; '%(FullPath)')"
+        Outputs="@(TextTemplate -&gt; '%(OutputPath)')"
+    >
         <!-- Create per-template output dirs -->
-        <MakeDir Directories="@(TextTemplate -> '%(OutputDir)')" />
-
+        <MakeDir Directories="@(TextTemplate -&gt; '%(OutputDir)')" />
         <!-- Run the pinned local tool once per template (MSBuild batching) -->
-        <Message Importance="High"
-            Text='T4: [$(T4Cli)] "%(TextTemplate.FullPath)" → "%(TextTemplate.OutputPath)"' />
+        <Message
+            Importance="High"
+            Text="T4: [$(T4Cli)] &quot;%(TextTemplate.FullPath)&quot; → &quot;%(TextTemplate.OutputPath)&quot;"
+        />
         <Exec
             Command="$(T4Cli) &quot;%(TextTemplate.FullPath)&quot; -o &quot;%(TextTemplate.OutputPath)&quot;"
-            WorkingDirectory="$(MSBuildProjectDirectory)" />
-
+            WorkingDirectory="$(MSBuildProjectDirectory)"
+        />
         <!-- Add generated files to compilation with friendly metadata -->
         <ItemGroup>
-            <Compile Include="@(TextTemplate -> '%(OutputPath)')">
+            <Compile Include="@(TextTemplate -&gt; '%(OutputPath)')">
                 <AutoGen>true</AutoGen>
                 <DesignTime>true</DesignTime>
                 <DependentUpon>%(TextTemplate.Filename)%(TextTemplate.Extension)</DependentUpon>
             </Compile>
-
             <!-- For the new SDK up-to-date check (improves IDE no-op builds) -->
-            <UpToDateCheckInput Include="@(TextTemplate -> '%(FullPath)')" />
-            <UpToDateCheckInput Include="@(T4Include -> '%(FullPath)')" />
-            <UpToDateCheckOutput Include="@(TextTemplate -> '%(OutputPath)')" />
+            <UpToDateCheckInput Include="@(TextTemplate -&gt; '%(FullPath)')" />
+            <UpToDateCheckInput Include="@(T4Include -&gt; '%(FullPath)')" />
+            <UpToDateCheckOutput Include="@(TextTemplate -&gt; '%(OutputPath)')" />
         </ItemGroup>
     </Target>
-
     <Target Name="CleanTextTemplateOutputs" AfterTargets="Clean" Condition="'$(T4Enabled)'=='true'">
-        <Delete Files="@(TextTemplate -> '%(OutputPath)')" />
+        <Delete Files="@(TextTemplate -&gt; '%(OutputPath)')" />
         <RemoveDir Directories="$(T4OutputDir)" Condition="Exists('$(T4OutputDir)')" />
     </Target>
     <PropertyGroup
