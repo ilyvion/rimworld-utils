@@ -5,6 +5,9 @@
         <T4Version>3.0.0</T4Version>
         <T4OutputDir>$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)\t4\</T4OutputDir>
     </PropertyGroup>
+    <PropertyGroup Condition="'$(UseLaboratory)'=='true'">
+        <DefineConstants>$(DefineConstants);USE_LABORATORY</DefineConstants>
+    </PropertyGroup>
     <ItemGroup Condition="'$(T4Enabled)'=='true'">
         <PackageDownload Include="dotnet-t4" Version="[$(T4Version)]" />
     </ItemGroup>

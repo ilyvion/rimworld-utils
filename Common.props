@@ -2,10 +2,7 @@
     <!-- Feature toggles / pins (override per project/CI if needed) -->
     <PropertyGroup>
         <!-- TODO: When nearly all projects use it, switch this to true -->
-        <UseLaboratory>false</UseLaboratory>
-    </PropertyGroup>
-    <PropertyGroup Condition="'$(UseLaboratory)'=='true'">
-        <DefineConstants>USE_LABORATORY</DefineConstants>
+        <UseLaboratory Condition="'$(UseLaboratory)'==''">false</UseLaboratory>
     </PropertyGroup>
     <PropertyGroup>
         <OutputType>Library</OutputType>
