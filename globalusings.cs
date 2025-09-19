@@ -1,4 +1,5 @@
 #pragma warning disable IDE0005 // Using directive is unnecessary.
+global using System.Collections;
 global using System.Globalization;
 global using System.Reflection;
 global using System.Runtime.CompilerServices;
