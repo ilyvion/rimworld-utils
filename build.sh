@@ -73,7 +73,6 @@ CONFIGURATION="${CONFIGURATION:-Debug}"
 TARGET="${TARGET:-$HOME/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/RimWorld/Mods/$MOD_NAME}"
 RIMWORLD_VERSION="${RIMWORLD_VERSION:-${1:-1.6}}"
 SKIP_BUILD="${SKIP_BUILD:-false}"
-EXTRA_FILES=("${EXTRA_FILES[@]:-}")
 
 case "${SKIP_BUILD,,}" in
     true|1|yes|on)
