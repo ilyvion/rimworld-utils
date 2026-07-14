@@ -2,147 +2,147 @@ name: Build Mod Workflow
 description: This workflow builds a RimWorld mod and prepares it for release, including uploading to GitHub artifacts.
 
 on:
-  workflow_call:
-    inputs:
-      mod_name:
-        type: "string"
-        description: "Name of the mod (used for solution and artifact names)"
-        required: true
-      rw_versions:
-        type: "string"
-        description: "RimWorld versions to build for, separated by space (e.g., '1.3 1.4 1.5 1.6')"
-        required: true
-      artifact_suffix:
-        required: true
-        description: "Suffix for the artifact name (e.g., 'Release' or '$ {{ github.sha }}')"
-        type: string
-      solution_configuration:
-        type: "string"
-        description: "Solution configuration to build"
-        default: "Release"
-        required: false
-      license_files:
-        type: "string"
-        description: "List of license files to include in the artifact, separated by space (e.g., 'LICENSE.txt LICENSE.md')"
-        default: "LICENSE"
-        required: false
-      extra_files:
-        type: "string"
-        description: "List of extra files to include in the artifact, separated by space (e.g., 'README.md CHANGELOG.md')"
-        default: ""
-        required: false
-      project_dependencies_base_path:
-        type: "string"
-        description: "Base path for project dependencies, used to resolve paths to project dependencies in the project files"
-        default: "..\\.."
-        required: false
-      steam_workshop_folder_path:
-        type: "string"
-        description: "Base path for the Steam Workshop folder, used to resolve paths to the Steam Workshop folder in the project files"
-        default: "..\\..\\.deps\\refs"
-        required: false
-    outputs:
-      artifact_name:
-        description: "Name of the artifact uploaded"
-        value: ${{ inputs.mod_name }}-${{ inputs.artifact_suffix }}
+    workflow_call:
+        inputs:
+            mod_name:
+                type: "string"
+                description: "Name of the mod (used for solution and artifact names)"
+                required: true
+            rw_versions:
+                type: "string"
+                description: "RimWorld versions to build for, separated by space (e.g., '1.3 1.4 1.5 1.6')"
+                required: true
+            artifact_suffix:
+                required: true
+                description: "Suffix for the artifact name (e.g., 'Release' or '$ {{ github.sha }}')"
+                type: string
+            solution_configuration:
+                type: "string"
+                description: "Solution configuration to build"
+                default: "Release"
+                required: false
+            license_files:
+                type: "string"
+                description: "List of license files to include in the artifact, separated by space (e.g., 'LICENSE.txt LICENSE.md')"
+                default: "LICENSE"
+                required: false
+            extra_files:
+                type: "string"
+                description: "List of extra files to include in the artifact, separated by space (e.g., 'README.md CHANGELOG.md')"
+                default: ""
+                required: false
+            project_dependencies_base_path:
+                type: "string"
+                description: "Base path for project dependencies, used to resolve paths to project dependencies in the project files"
+                default: "..\\.."
+                required: false
+            steam_workshop_folder_path:
+                type: "string"
+                description: "Base path for the Steam Workshop folder, used to resolve paths to the Steam Workshop folder in the project files"
+                default: "..\\..\\.deps\\refs"
+                required: false
+        outputs:
+            artifact_name:
+                description: "Name of the artifact uploaded"
+                value: ${{ inputs.mod_name }}-${{ inputs.artifact_suffix }}
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout Repository
+              uses: actions/checkout@v4
 
-      - name: Checkout rimworld-utils Repository
-        uses: actions/checkout@v4
-        with:
-          repository: "ilyvion/rimworld-utils"
-          path: "rimworld-utils"
+            - name: Checkout rimworld-utils Repository
+              uses: actions/checkout@v4
+              with:
+                  repository: "ilyvion/rimworld-utils"
+                  path: "rimworld-utils"
 
-      - name: Move to parent, where it's expected
-        shell: bash
-        run: mv rimworld-utils ..
+            - name: Move to parent, where it's expected
+              shell: bash
+              run: mv rimworld-utils ..
 
-      - name: Post-Checkout Repository Hook
-        uses: ./.github/build_hooks/post_checkout_hook
-        if: ${{ hashFiles('./.github/build_hooks/post_checkout_hook/action.yml') != '' }}
+            - name: Post-Checkout Repository Hook
+              uses: ./.github/build_hooks/post_checkout_hook
+              if: ${{ hashFiles('./.github/build_hooks/post_checkout_hook/action.yml') != '' }}
 
-      - name: Pre-Setup Dotnet Hook
-        uses: ./.github/build_hooks/pre_setup_dotnet_hook
-        if: ${{ hashFiles('./.github/build_hooks/pre_setup_dotnet_hook/action.yml') != '' }}
+            - name: Pre-Setup Dotnet Hook
+              uses: ./.github/build_hooks/pre_setup_dotnet_hook
+              if: ${{ hashFiles('./.github/build_hooks/pre_setup_dotnet_hook/action.yml') != '' }}
 
-      - name: Setup Dotnet
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 9.0.x
+            - name: Setup Dotnet
+              uses: actions/setup-dotnet@v4
+              with:
+                  dotnet-version: 10.0.x
 
-      - name: Post-Setup Dotnet Hook
-        uses: ./.github/build_hooks/post_setup_dotnet_hook
-        if: ${{ hashFiles('./.github/build_hooks/post_setup_dotnet_hook/action.yml') != '' }}
+            - name: Post-Setup Dotnet Hook
+              uses: ./.github/build_hooks/post_setup_dotnet_hook
+              if: ${{ hashFiles('./.github/build_hooks/post_setup_dotnet_hook/action.yml') != '' }}
 
-      - name: Pre-Build Mod Hook
-        uses: ./.github/build_hooks/pre_build_mod_hook
-        if: ${{ hashFiles('./.github/build_hooks/pre_build_mod_hook/action.yml') != '' }}
+            - name: Pre-Build Mod Hook
+              uses: ./.github/build_hooks/pre_build_mod_hook
+              if: ${{ hashFiles('./.github/build_hooks/pre_build_mod_hook/action.yml') != '' }}
 
-      - name: Build Mod
-        shell: bash
-        run: |
-          mapfile -t rw_versions <<< "${{ inputs.rw_versions }}"
-          for rw_version in "${rw_versions[@]}"; do
-            echo "Building for RimWorld version: $rw_version"
-            dotnet build \
-            --property "RimWorldVersion=$rw_version"\
-            --property "ProjectDependenciesBasePath=${{ inputs.project_dependencies_base_path }}"\
-            --property "RimWorldSteamWorkshopFolderPath=${{ inputs.steam_workshop_folder_path }}"\
-            --configuration "${{ inputs.solution_configuration }}" \
-            "${{ inputs.mod_name }}.sln"
-          done
+            - name: Build Mod
+              shell: bash
+              run: |
+                  mapfile -t rw_versions <<< "${{ inputs.rw_versions }}"
+                  for rw_version in "${rw_versions[@]}"; do
+                    echo "Building for RimWorld version: $rw_version"
+                    dotnet build \
+                    --property "RimWorldVersion=$rw_version"\
+                    --property "ProjectDependenciesBasePath=${{ inputs.project_dependencies_base_path }}"\
+                    --property "RimWorldSteamWorkshopFolderPath=${{ inputs.steam_workshop_folder_path }}"\
+                    --configuration "${{ inputs.solution_configuration }}" \
+                    "${{ inputs.mod_name }}.sln"
+                  done
 
-      - name: Post-Build Mod Hook
-        uses: ./.github/build_hooks/post_build_mod_hook
-        if: ${{ hashFiles('./.github/build_hooks/post_build_mod_hook/action.yml') != '' }}
+            - name: Post-Build Mod Hook
+              uses: ./.github/build_hooks/post_build_mod_hook
+              if: ${{ hashFiles('./.github/build_hooks/post_build_mod_hook/action.yml') != '' }}
 
-      - name: Pre-Generate Versions Directory List Hook
-        uses: ./.github/build_hooks/pre_generate_versions_directory_list_hook
-        if: ${{ hashFiles('./.github/build_hooks/pre_generate_versions_directory_list_hook/action.yml') != '' }}
+            - name: Pre-Generate Versions Directory List Hook
+              uses: ./.github/build_hooks/pre_generate_versions_directory_list_hook
+              if: ${{ hashFiles('./.github/build_hooks/pre_generate_versions_directory_list_hook/action.yml') != '' }}
 
-      - name: Generate versions directory list
-        id: directory_list
-        shell: bash
-        run: |
-          mapfile -t rw_versions <<< "${{ inputs.rw_versions }}"
-          {
-            echo "mod_folders<<EOF"
-            printf "%s\n" "${rw_versions[@]}"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+            - name: Generate versions directory list
+              id: directory_list
+              shell: bash
+              run: |
+                  mapfile -t rw_versions <<< "${{ inputs.rw_versions }}"
+                  {
+                    echo "mod_folders<<EOF"
+                    printf "%s\n" "${rw_versions[@]}"
+                    echo "EOF"
+                  } >> "$GITHUB_OUTPUT"
 
-      - name: Post-Generate Versions Directory List Hook
-        uses: ./.github/build_hooks/post_generate_versions_directory_list_hook
-        if: ${{ hashFiles('./.github/build_hooks/post_generate_versions_directory_list_hook/action.yml') != '' }}
+            - name: Post-Generate Versions Directory List Hook
+              uses: ./.github/build_hooks/post_generate_versions_directory_list_hook
+              if: ${{ hashFiles('./.github/build_hooks/post_generate_versions_directory_list_hook/action.yml') != '' }}
 
-      - name: Pre-Upload Mod Artifacts Hook
-        uses: ./.github/build_hooks/pre_upload_mod_artifacts_hook
-        if: ${{ hashFiles('./.github/build_hooks/pre_upload_mod_artifacts_hook/action.yml') != '' }}
+            - name: Pre-Upload Mod Artifacts Hook
+              uses: ./.github/build_hooks/pre_upload_mod_artifacts_hook
+              if: ${{ hashFiles('./.github/build_hooks/pre_upload_mod_artifacts_hook/action.yml') != '' }}
 
-      - name: Upload Mod Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ inputs.mod_name }}-${{ inputs.artifact_suffix }}
-          path: |
-            ${{ inputs.extra_files }}
-            About/
-            Common/
-            ${{ steps.directory_list.outputs.mod_folders }}
-            ${{ inputs.license_files }}
-            README.md
-            CHANGELOG.md
-            LoadFolders.xml
-            !**/.*
-            !About/*.pdn
-            !About/*.svg
-            !About/*.ttf
+            - name: Upload Mod Artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: ${{ inputs.mod_name }}-${{ inputs.artifact_suffix }}
+                  path: |
+                      ${{ inputs.extra_files }}
+                      About/
+                      Common/
+                      ${{ steps.directory_list.outputs.mod_folders }}
+                      ${{ inputs.license_files }}
+                      README.md
+                      CHANGELOG.md
+                      LoadFolders.xml
+                      !**/.*
+                      !About/*.pdn
+                      !About/*.svg
+                      !About/*.ttf
 
-      - name: Post-Upload Mod Artifacts Hook
-        uses: ./.github/build_hooks/post_upload_mod_artifacts_hook
-        if: ${{ hashFiles('./.github/build_hooks/post_upload_mod_artifacts_hook/action.yml') != '' }}
+            - name: Post-Upload Mod Artifacts Hook
+              uses: ./.github/build_hooks/post_upload_mod_artifacts_hook
+              if: ${{ hashFiles('./.github/build_hooks/post_upload_mod_artifacts_hook/action.yml') != '' }}
