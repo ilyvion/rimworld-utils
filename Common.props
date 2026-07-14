@@ -3,6 +3,7 @@
     <PropertyGroup>
         <!-- TODO: When nearly all projects use it, switch this to true -->
         <UseLaboratory Condition="'$(UseLaboratory)'==''">false</UseLaboratory>
+        <UseTaggedUnions Condition="'$(UseTaggedUnions)'==''">false</UseTaggedUnions>
     </PropertyGroup>
     <PropertyGroup>
         <OutputType>Library</OutputType>
@@ -90,6 +91,10 @@
         <ProjectReference Include="$(ProjectDependenciesBasePath)\ilyvion.Laboratory\ilyvion.Laboratory\ilyvion.Laboratory.csproj">
             <Private>false</Private>
         </ProjectReference>
+    </ItemGroup>
+    <ItemGroup Condition="'$(UseTaggedUnions)'=='true'">
+        <ProjectReference Include="$(MSBuildThisFileDirectory)TaggedUnions\TaggedUnions.csproj"
+            OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     </ItemGroup>
     <ItemGroup>
         <Compile Update="**/*.cs">

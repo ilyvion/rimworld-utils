@@ -15,8 +15,7 @@
     <PropertyGroup Condition="'$(T4Enabled)'=='true'">
         <T4PkgToolsDir>$(NuGetPackageRoot)dotnet-t4/$(T4Version)/tools/</T4PkgToolsDir>
         <T4Dll Condition="Exists('$(T4PkgToolsDir)net6.0/any/t4.dll')"
-            >$(T4PkgToolsDir)net6.0/any/t4.dll</T4Dll
-        >
+            >$(T4PkgToolsDir)net6.0/any/t4.dll</T4Dll>
         <T4Cli>dotnet "$(T4Dll)"</T4Cli>
     </PropertyGroup>
     <ItemGroup Condition="'$(T4Enabled)'=='true'">
