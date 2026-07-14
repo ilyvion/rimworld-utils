@@ -33,9 +33,6 @@
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build ${input:rimWorldVersion}",
-            "env": {
-                "HARMONY_LOG_FILE": "${workspaceFolder}/.savedatafolder/${input:rimWorldVersion}/Harmony.log"
-            },
             "args": [
                 "--host",
                 "flatpak",
