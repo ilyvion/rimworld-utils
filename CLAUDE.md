@@ -23,6 +23,7 @@ The installed game (Steam/Flatpak) can be found at:
 
 For inspecting assemblies from older versions of Rimworld, there's also these directories:
 
+- 1.3: `/home/alex/.var/app/com.valvesoftware.Steam/.steam/steam/steamapps/common/RimWorld/RimWorldLinux_Data/Managed_1.3`
 - 1.4: `/home/alex/.var/app/com.valvesoftware.Steam/.steam/steam/steamapps/common/RimWorld/RimWorldLinux_Data/Managed_1.4`
 - 1.5: `/home/alex/.var/app/com.valvesoftware.Steam/.steam/steam/steamapps/common/RimWorld/RimWorldLinux_Data/Managed_1.5`
 
@@ -49,7 +50,7 @@ RimBridgeServer (the in-game GABP bridge) can be driven by an MCP client through
 - The initial GABP connection sometimes drops once, early during game startup (`games_call_tool` errors with "GABP client connection closed"); `games_status` will show `running-disconnected` — just call `games_connect` again, no need to restart the game.
 - **Do not call `games_stop`/`games_kill` while RimWorld is still loading** (defs/mods still initializing) — RimWorld handles a stop signal badly mid-load and can hang or crash instead of exiting cleanly, and `games_stop` will still report "stopped successfully" even when the real process didn't die (verify independently with `pgrep -af RimWorldLinux | grep -v pgrep` if it matters). Wait until it's reached the main menu or a loaded game first. There's no dedicated "wait for main menu" tool — `rimbridge/wait_for_game_loaded`'s readiness targets (`gameData`, `mapData`, `currentMap`, `playable`, `visual`) all require an actual loaded save/game and time out at the main menu with `"blockingReason":"No current game is loaded."`. Instead, poll `rimbridge/get_bridge_status` and look for `state.programState == "Entry"` with the log stream idle (`latestLogSequence` no longer advancing across polls).
 - A recurring benign `games_get_attention` item on startup: repeated `Cannot create FMOD::Sound instance for clip ""` errors (empty audio clip path) — safe to acknowledge via `games_ack_attention` without further investigation. A `severity: "fatal"` entry alongside it (e.g. a `NullReferenceException`) during early startup has so far not been blocking either, if the log stream goes on to show a normal successful startup afterward — but treat that judgment call skeptically per session, don't assume it's always safe to ignore.
-- An agent can verify a mod's tests actually pass by launching the game this way and watching for RimTest Redux's test-run markers in the log, between `[RimTest Redux] TESTING START` and `[RimTest Redux] TESTING END`, then stopping the game once `TESTING END` appears. **Don't poll for this with `ScheduleWakeup`/sleep loops — they overshoot and waste time.** Instead, since `TESTING END` is a one-shot terminal marker, use a backgrounded shell wait that blocks until it appears and notifies immediately, e.g. (adjust the version path as needed):
+- An agent should verify a mod's tests actually pass by launching the game this way and watching for RimTest Redux's test-run markers in the log, between `[RimTest Redux] TESTING START` and `[RimTest Redux] TESTING END`, then stopping the game once `TESTING END` appears. **Don't poll for this with `ScheduleWakeup`/sleep loops — they overshoot and waste time.** Instead, since `TESTING END` is a one-shot terminal marker, use a backgrounded shell wait that blocks until it appears and notifies immediately, e.g. (adjust the version path as needed):
     ```
     until grep -q "TESTING END" ".savedatafolder/<version>/Player.log" 2>/dev/null; do sleep 2; done
     ```
@@ -80,3 +81,7 @@ To unit test logic that's entangled with game/presentation logic:
 Prefer test names and bodies that state the behavior being guarded (e.g. `FailedSwapRestoresOriginalContents`), and where a test exists specifically because of a past bug, say so in a comment so a future change doesn't silently regress it.
 
 Every code change must be accompanied by one or more tests. If the code being modified has no existing test coverage, write a passing test that captures the current behavior _before_ making any changes — this acts as a regression guard. Then make the change and add or update tests to cover the new behavior.
+
+## CHANGELOG.md
+
+Do not use quotation marks ("") in CHANGELOG.md. If you need to quote something, use apostrophes, ('').
