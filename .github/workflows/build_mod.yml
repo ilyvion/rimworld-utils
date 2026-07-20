@@ -34,7 +34,7 @@ on:
             project_dependencies_base_path:
                 type: "string"
                 description: "Base path for project dependencies, used to resolve paths to project dependencies in the project files"
-                default: "..\\.."
+                default: "..\\..\\.."
                 required: false
             steam_workshop_folder_path:
                 type: "string"
