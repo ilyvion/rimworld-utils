@@ -47,6 +47,32 @@ jobs:
                   echo "version=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_OUTPUT
                   echo "no_prefix_version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
+            - name: Verify Release Tag Is Signed
+              shell: bash
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  TAG_NAME: ${{ steps.variables.outputs.version }}
+              run: |
+                  ref_json=$(gh api "repos/${{ github.repository }}/git/ref/tags/$TAG_NAME")
+                  object_type=$(echo "$ref_json" | jq -r '.object.type')
+                  object_sha=$(echo "$ref_json" | jq -r '.object.sha')
+
+                  if [ "$object_type" != "tag" ]; then
+                    echo "::error::Tag '$TAG_NAME' is a lightweight tag (not annotated), so it cannot be signed. Releases must be created from a signed tag."
+                    exit 1
+                  fi
+
+                  tag_json=$(gh api "repos/${{ github.repository }}/git/tags/$object_sha")
+                  verified=$(echo "$tag_json" | jq -r '.verification.verified')
+
+                  if [ "$verified" != "true" ]; then
+                    reason=$(echo "$tag_json" | jq -r '.verification.reason')
+                    echo "::error::Tag '$TAG_NAME' is not signed or its signature could not be verified (reason: $reason)."
+                    exit 1
+                  fi
+
+                  echo "Tag '$TAG_NAME' signature verified."
+
             - name: Create Mod Folder
               shell: bash
               run: mkdir -p ${{ steps.variables.outputs.mod_path }}
