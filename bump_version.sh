@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# --- Check for --yes flag ---
+# --- Check for --yes / --allow-staged flags ---
 auto_yes="false"
+allow_staged="false"
 args=()
 for arg in "$@"; do
     if [[ "$arg" == "--yes" ]]; then
         auto_yes="true"
+    elif [[ "$arg" == "--allow-staged" ]]; then
+        allow_staged="true"
     else
         args+=("$arg")
     fi
@@ -14,8 +17,8 @@ done
 set -- "${args[@]}"
 
 # --- Don't allow staged changes ---
-if ! git diff --cached --quiet; then
-    echo "There are already staged changes. Please commit or unstage them first."
+if [[ "$allow_staged" != "true" ]] && ! git diff --cached --quiet; then
+    echo "There are already staged changes. Please commit or unstage them first (or pass --allow-staged)."
     exit 1
 fi
 
@@ -32,7 +35,7 @@ old_version=$(grep -oPm1 '(?<=<VersionPrefix>)[^<]+' "$props_file") || {
 
 # --- Require new version ---
 if [[ $# -lt 1 ]]; then
-    echo "Usage: $0 <new-version> [--yes]"
+    echo "Usage: $0 <new-version> [--yes] [--allow-staged]"
     echo "Current version is: $old_version"
     exit 1
 fi
