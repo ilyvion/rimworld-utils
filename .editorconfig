@@ -132,6 +132,9 @@ dotnet_diagnostic.IDE0041.severity = warning
 # Deconstruct variable declaration
 dotnet_diagnostic.IDE0042.severity = warning
 
+# Invalid format string
+dotnet_diagnostic.IDE0043.severity = warning
+
 # Add readonly modifier
 dotnet_diagnostic.IDE0044.severity = warning
 
@@ -221,6 +224,12 @@ dotnet_diagnostic.IDE0075.severity = warning
 dotnet_diagnostic.IDE0078.severity = warning
 dotnet_diagnostic.IDE0260.severity = warning
 
+# Remove invalid global 'SuppressMessageAttribute'
+dotnet_diagnostic.IDE0076.severity = warning
+
+# Avoid legacy format target in global 'SuppressMessageAttribute'
+dotnet_diagnostic.IDE0077.severity = warning
+
 # Remove unnecessary suppression
 dotnet_diagnostic.IDE0079.severity = warning
 
@@ -280,6 +289,9 @@ dotnet_diagnostic.IDE0211.severity = none
 # Add explicit cast in foreach loop
 dotnet_diagnostic.IDE0220.severity = warning
 
+# Add explicit cast
+dotnet_diagnostic.IDE0221.severity = warning
+
 # Use UTF-8 string literal
 dotnet_diagnostic.IDE0230.severity = warning
 
@@ -333,6 +345,22 @@ dotnet_diagnostic.IDE0340.severity = warning
 # Use implicitly typed lambda
 dotnet_diagnostic.IDE0350.severity = warning
 
+# Simplify property accessor
+dotnet_diagnostic.IDE0360.severity = warning
+
+# Remove unnecessary suppression
+dotnet_diagnostic.IDE0370.severity = warning
+
+# Remove unnecessary unsafe modifier
+dotnet_diagnostic.IDE0380.severity = warning
+
+# Make method synchronous
+dotnet_diagnostic.IDE0390.severity = warning
+dotnet_diagnostic.IDE0391.severity = warning
+
+# Use labeled jump statement
+dotnet_diagnostic.IDE0410.severity = warning
+
 # Use conditional delegate call
 dotnet_diagnostic.IDE1005.severity = warning
 
@@ -370,17 +398,32 @@ dotnet_diagnostic.CA1010.severity = warning
 # Abstract types should not have public constructors
 dotnet_diagnostic.CA1012.severity = warning
 
+# Mark assemblies with CLSCompliant (no CLS interop concern for a RimWorld mod assembly)
+dotnet_diagnostic.CA1014.severity = suggestion
+
+# Mark assemblies with assembly version
+dotnet_diagnostic.CA1016.severity = warning
+
+# Mark assemblies with ComVisible (no COM interop for a RimWorld mod)
+dotnet_diagnostic.CA1017.severity = suggestion
+
 # Mark attributes with AttributeUsageAttribute
 dotnet_diagnostic.CA1018.severity = warning
 
 # Define accessors for attribute arguments
 dotnet_diagnostic.CA1019.severity = warning
 
+# Avoid out parameters (RimWorld/Harmony APIs frequently require matching out/ref signatures)
+dotnet_diagnostic.CA1021.severity = suggestion
+
 # Use properties where appropriate
 dotnet_diagnostic.CA1024.severity = warning
 
 # Mark enums with FlagsAttribute
 dotnet_diagnostic.CA1027.severity = warning
+
+# Enum Storage should be Int32
+dotnet_diagnostic.CA1028.severity = warning
 
 # Use events where appropriate
 dotnet_diagnostic.CA1030.severity = warning
@@ -414,6 +457,9 @@ dotnet_diagnostic.CA1043.severity = warning
 
 # Use integral or string argument for indexers
 dotnet_diagnostic.CA1044.severity = warning
+
+# Do not pass types by reference (RimWorld/Harmony APIs frequently require matching out/ref signatures)
+dotnet_diagnostic.CA1045.severity = suggestion
 
 # Do not overload operator equals on reference types
 dotnet_diagnostic.CA1046.severity = warning
@@ -813,6 +859,15 @@ dotnet_diagnostic.CA1871.severity = warning
 # Prefer 'Convert.ToHexString' and 'Convert.ToHexStringLower' over call chains based on 'BitConverter.ToString'
 dotnet_diagnostic.CA1872.severity = warning
 
+# Avoid potentially expensive logging
+dotnet_diagnostic.CA1873.severity = warning
+
+# Use 'Regex.IsMatch'
+dotnet_diagnostic.CA1874.severity = warning
+
+# Use 'Regex.Count'
+dotnet_diagnostic.CA1875.severity = warning
+
 ## SingleFile rules
 
 # Avoid accessing Assembly file path when publishing as a single file
@@ -882,6 +937,9 @@ dotnet_diagnostic.CA2021.severity = warning
 
 # Avoid inexact read with Stream.Read
 dotnet_diagnostic.CA2022.severity = warning
+
+# Invalid braces in message template
+dotnet_diagnostic.CA2023.severity = warning
 
 # Do not use StreamReader.EndOfStream in async methods
 dotnet_diagnostic.CA2024.severity = warning
