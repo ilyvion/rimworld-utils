@@ -7,9 +7,12 @@ namespace TaggedUnions.Tests;
 
 internal static class GeneratorTestHelper
 {
-    public static (Compilation Compilation, ImmutableArray<Diagnostic> Diagnostics) RunGenerator(string source)
+    public static (Compilation Compilation, ImmutableArray<Diagnostic> Diagnostics) RunGenerator(
+        string source
+    )
     {
-        var references = AppDomain.CurrentDomain.GetAssemblies()
+        var references = AppDomain
+            .CurrentDomain.GetAssemblies()
             .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
             .Select(a => (MetadataReference)MetadataReference.CreateFromFile(a.Location))
             .ToList();
@@ -18,11 +21,20 @@ internal static class GeneratorTestHelper
             assemblyName: "TaggedUnions.Tests.Generated",
             syntaxTrees: [CSharpSyntaxTree.ParseText(source)],
             references: references,
-            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+            options: new CSharpCompilationOptions(
+                OutputKind.DynamicallyLinkedLibrary,
+                nullableContextOptions: NullableContextOptions.Enable
+            )
+        );
 
         var generator = new TaggedUnionGenerator();
-        var driver = CSharpGeneratorDriver.Create(generator).RunGeneratorsAndUpdateCompilation(
-            compilation, out var outputCompilation, out var generatorDiagnostics);
+        var driver = CSharpGeneratorDriver
+            .Create(generator)
+            .RunGeneratorsAndUpdateCompilation(
+                compilation,
+                out var outputCompilation,
+                out var generatorDiagnostics
+            );
 
         var compileDiagnostics = outputCompilation.GetDiagnostics();
 
