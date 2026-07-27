@@ -23,11 +23,9 @@
     <PropertyGroup>
         <RimWorldVersion Condition="'$(RimWorldVersion)'==''">1.6</RimWorldVersion>
         <ProjectDependenciesBasePath Condition="'$(ProjectDependenciesBasePath)'==''"
-            >..\..\..</ProjectDependenciesBasePath
-        >
+            >..\..\..</ProjectDependenciesBasePath>
         <RimWorldSteamWorkshopFolderPath Condition="'$(RimWorldSteamWorkshopFolderPath)'==''"
-            >..\..\.deps\refs</RimWorldSteamWorkshopFolderPath
-        >
+            >..\..\.deps\refs</RimWorldSteamWorkshopFolderPath>
         <DefaultItemExcludes>$(DefaultItemExcludes);obj/**</DefaultItemExcludes>
         <BaseIntermediateOutputPath>obj/$(RimWorldVersion)</BaseIntermediateOutputPath>
     </PropertyGroup>
@@ -48,7 +46,7 @@
                 <DefineConstants>$(DefineConstants);v1_6;v1_6_OR_GREATER;v1_5_OR_GREATER;v1_4_OR_GREATER;v1_3_OR_GREATER</DefineConstants>
             </PropertyGroup>
             <ItemGroup>
-                <PackageReference Include="Lib.Harmony" Version="2.3.6">
+                <PackageReference Include="Lib.Harmony" Version="2.4.2">
                     <ExcludeAssets>runtime</ExcludeAssets>
                 </PackageReference>
             </ItemGroup>
@@ -103,8 +101,11 @@
         </ProjectReference>
     </ItemGroup>
     <ItemGroup Condition="'$(UseTaggedUnions)'=='true'">
-        <ProjectReference Include="$(MSBuildThisFileDirectory)TaggedUnions\TaggedUnions.csproj"
-            OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+        <ProjectReference
+            Include="$(MSBuildThisFileDirectory)TaggedUnions\TaggedUnions.csproj"
+            OutputItemType="Analyzer"
+            ReferenceOutputAssembly="false"
+        />
     </ItemGroup>
     <ItemGroup>
         <Compile Update="**/*.cs">
