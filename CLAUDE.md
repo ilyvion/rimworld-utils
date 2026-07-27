@@ -6,7 +6,7 @@
 
 This repo lives alongside two sibling repositories under `RimWorld/` (i.e. at `../ilyvion.Laboratory` and `../rimworld-utils` relative to this repo). Both are the user's own repos and their source is available locally for reference when tracing a type/API that isn't defined anywhere in this repo.
 
-- **`ilyvion.Laboratory`** (`../ilyvion.Laboratory`) — a RimWorld library/framework mod (namespace `ilyvion.Laboratory`) that this and the user's other RimWorld mods depend on to avoid code duplication. It's referenced as a project/assembly dependency (see `Source/*/*.csproj` / build output `0ilyvion.Laboratory.dll`). Things like `CachedValue<T>` and `CachedValues<TKey, TValue>` (simple TTL-based caches, see `ilyvion.Laboratory/Cache.cs`), `MultiTickCoroutines`/`Coroutine` helpers, `Boxed<T>`, and other small shared utilities used throughout this codebase are defined there, not in this repo. If a type is used here but its definition can't be found in `Source/`, check there first before assuming it's from RimWorld itself.
+- **`ilyvion.Laboratory`** (`../ilyvion.Laboratory`) — a RimWorld library/framework mod (namespace `ilyvion.Laboratory`) that some of the user's other RimWorld mods depend on to avoid code duplication. It's referenced as a project/assembly dependency (see `../rimworld-utils/Common.props`, referenced by `./Directory.Build.props` when `<UseLaboratory>true</UseLaboratory>` is present within. If `UseLaboratory` is not set, it is not available. It contains things like `CachedValue<T>`and`CachedValues<TKey, TValue>`(simple TTL-based caches, see`ilyvion.Laboratory/Cache.cs`), `MultiTickCoroutines`/`Coroutine`helpers,`Boxed<T>`, and other small shared utilities used throughout this codebase are defined there, not in this repo. If a type is used here but its definition can't be found in `Source/`, check there first before assuming it's from RimWorld itself.
 
 - **`rimworld-utils`** (`../rimworld-utils`) — shared build tooling (not a mod). Provides `Common.props`/`Common.targets`, imported by this repo's `Directory.Build.props`, plus shared scripts (`build.sh`, `bump_version.sh`, `generate_refs.sh`, `steam_comment_extractor.py`, `html_to_steam.py`) and shared MSBuild/editorconfig conventions reused across the user's RimWorld mod projects. Check here when a build property, target, or script referenced by this repo's `.props`/`.targets` files or CI isn't defined locally.
 
@@ -39,6 +39,10 @@ None of these mods ship hand-drawn icon assets — new UI icons (toolbar buttons
 3. Copy the resulting PNG into the mod's `Common/Textures/UI/` (or equivalent) directory, then add a `ContentFinder<Texture2D>.Get("UI/IconName")` field for it wherever that mod centralizes its texture references (e.g. `Icons.cs`).
 
 **Naming**: RimWorld's paths are a shared namespace across every installed mod, so a generic name like `icon_log.png` risks colliding with another mod's asset. Prefix filenames with a short per-mod code (RimTest Redux uses `RTR`) and use RimWorld's own `PascalCase` convention instead of `snake_case` — e.g. `RTRIconLog`, `RTRIconStatusPass`, `RTRIconChevronCollapsed`.
+
+## Translations
+
+The mods tend to use Rimworld's translation system so texts aren't hard coded in any given language. When multiple languages are present in a project (which is rare, but it happens), when adding any new text, it must be added in every language present, not just for English.
 
 ## Launching RimWorld under GABS for AI-driven bridge sessions
 
