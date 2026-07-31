@@ -76,6 +76,7 @@ csharp_style_expression_bodied_methods = true:warning
 
 # Use expression body for conversion operators
 dotnet_diagnostic.IDE0023.severity = warning
+csharp_style_expression_bodied_methods = true:warning
 
 # Use expression body for operators
 dotnet_diagnostic.IDE0024.severity = warning
@@ -1168,7 +1169,8 @@ csharp_preserve_single_line_statements = false
 csharp_preserve_single_line_blocks = false
 
 [{**/HarmonyPatches/*.cs,**/Patches/*.cs}]
-dotnet_diagnostic.IDE0051.severity = none
+dotnet_diagnostic.IDE0051.severity = suggestion
+dotnet_diagnostic.IDE0062.severity = suggestion
 
 [{*Def,*DefOf,CompProperties_*}.cs]
 dotnet_diagnostic.CA1051.severity = suggestion
