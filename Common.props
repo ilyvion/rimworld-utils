@@ -96,7 +96,7 @@
         </PackageReference>
     </ItemGroup>
     <ItemGroup Condition="'$(UseLaboratory)'=='true'">
-        <ProjectReference Include="$(ProjectDependenciesBasePath)\ilyvion.Laboratory\ilyvion.Laboratory\ilyvion.Laboratory.csproj">
+        <ProjectReference Include="$(ProjectDependenciesBasePath)\ilyvion.Laboratory\Source\ilyvion.Laboratory\ilyvion.Laboratory.csproj">
             <Private>false</Private>
         </ProjectReference>
     </ItemGroup>
