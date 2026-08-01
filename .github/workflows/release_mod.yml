@@ -96,6 +96,19 @@ jobs:
                   version: ${{ steps.variables.outputs.no_prefix_version }}
                   path: ${{ steps.variables.outputs.mod_path }}/CHANGELOG.md
 
+            - name: Add Release Notes to Job Summary
+              shell: bash
+              env:
+                  CHANGELOG_CONTENT: ${{ steps.changelog_reader.outputs.changes }}
+                  VERSION: ${{ steps.variables.outputs.version }}
+              run: |
+                  {
+                    echo "**Updated $(date +%Y-%m-%d)** (${VERSION})"
+                    echo "Release notes:"
+                    echo
+                    echo "$CHANGELOG_CONTENT" | sed -E 's/^### (.*)$/**\1**/'
+                  } >> "$GITHUB_STEP_SUMMARY"
+
             - name: Check for Published File ID
               if: ${{ inputs.upload_to_steam }}
               id: published_file_id_check
