@@ -10,24 +10,11 @@
 set -euo pipefail
 shopt -s nullglob
 
-get_script_dir() {
-    local SOURCE="${BASH_SOURCE[0]}"
-    while [ -h "$SOURCE" ]; do # resolve symlink
-        local DIR
-        DIR="$(cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd)"
-        SOURCE="$(readlink "$SOURCE")"
-        [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # relative symlink
-    done
-    cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd
-}
-
 confirm() {
     local reply
     read -r -p "$1 [y/N] " reply
     [[ "$reply" =~ ^[Yy] ]]
 }
-
-cd "$(get_script_dir)"
 
 # Load configuration
 CONFIG_FILE="./originals_config.sh"
