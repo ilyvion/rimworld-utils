@@ -102,11 +102,51 @@ jobs:
                   CHANGELOG_CONTENT: ${{ steps.changelog_reader.outputs.changes }}
                   VERSION: ${{ steps.variables.outputs.version }}
               run: |
+                  # Discord has a 2000-character-per-message limit, so the release notes are
+                  # greedily packed into chunks that stay under that limit, separated by "---".
+                  # Each chunk can then be pasted as a separate Discord message.
+                  discord_limit=2000
+
+                  header="**Updated $(date +%Y-%m-%d)** (${VERSION})"
+                  subheader="Release notes:"
+
+                  mapfile -t body_lines < <(echo "$CHANGELOG_CONTENT" | sed -E 's/^### (.*)$/**\1**/')
+
+                  all_lines=("$header" "$subheader" "")
+                  all_lines+=("${body_lines[@]}")
+
+                  chunk=""
+                  first_chunk=true
+
+                  flush() {
+                    if [ "$first_chunk" = true ]; then
+                      first_chunk=false
+                    else
+                      echo
+                      echo "---"
+                      echo
+                    fi
+                    echo "$chunk"
+                  }
+
                   {
-                    echo "**Updated $(date +%Y-%m-%d)** (${VERSION})"
-                    echo "Release notes:"
-                    echo
-                    echo "$CHANGELOG_CONTENT" | sed -E 's/^### (.*)$/**\1**/'
+                    for line in "${all_lines[@]}"; do
+                      if [ -z "$chunk" ]; then
+                        candidate="$line"
+                      else
+                        candidate="$chunk"$'\n'"$line"
+                      fi
+                      if [ "${#candidate}" -gt "$discord_limit" ] && [ -n "$chunk" ]; then
+                        flush
+                        chunk="$line"
+                      else
+                        chunk="$candidate"
+                      fi
+                    done
+
+                    if [ -n "$chunk" ]; then
+                      flush
+                    fi
                   } >> "$GITHUB_STEP_SUMMARY"
 
             - name: Check for Published File ID
