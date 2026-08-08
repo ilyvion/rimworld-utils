@@ -14,5 +14,3 @@ To unit test logic that's entangled with game/presentation logic:
 3. Before writing assertions against an actual RimWorld/Verse type's constructor or API shape, verify it rather than guessing — e.g. inspect `~/.nuget/packages/krafs.rimworld.ref/<version>/ref/net472/Assembly-CSharp.dll` via reflection metadata, or grep the mod/siblings for existing working usages.
 
 Prefer test names and bodies that state the behavior being guarded (e.g. `FailedSwapRestoresOriginalContents`), and where a test exists specifically because of a past bug, say so in a comment so a future change doesn't silently regress it.
-
-Every code change must be accompanied by one or more tests. If the code being modified has no existing test coverage, write a passing test that captures the current behavior _before_ making any changes — this acts as a regression guard. Then make the change and add or update tests to cover the new behavior.
