@@ -29,6 +29,10 @@
 # - RIMWORLD_EXECUTABLE: Path to the RimWorld executable inside the Flatpak
 #   Steam install (default: standard Flatpak Steam location)
 # - GABS_LAUNCH_ARGS: Array of extra RimWorld command-line arguments
+#
+# Runs .vscode/build.sh $RIMWORLD_VERSION before launching, so the mod
+# folder the game loads from is always up to date for the version being
+# launched.
 
 set -euo pipefail
 
@@ -61,6 +65,8 @@ RIMWORLD_EXECUTABLE="${RIMWORLD_EXECUTABLE:-$HOME/.var/app/com.valvesoftware.Ste
 
 SAVE_DIR="$PROJECT_DIR/.savedatafolder/$RIMWORLD_VERSION"
 mkdir -p "$SAVE_DIR"
+
+"$PROJECT_DIR/.vscode/build.sh" "$RIMWORLD_VERSION"
 
 exec flatpak-spawn --host flatpak run \
   --filesystem="$PROJECT_DIR" \
