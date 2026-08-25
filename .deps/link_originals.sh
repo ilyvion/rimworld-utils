@@ -109,7 +109,7 @@ for id in "${ORIGINALS[@]}"; do
     fi
 
     if [[ -n "$name" ]] && confirm "Add '$id: $name' to README.md?"; then
-        echo "-   $id: $name" >>"$README"
+        echo "- $id: $name" >>"$README"
         echo "Added $id to README.md"
         README_CHANGED=true
     fi
