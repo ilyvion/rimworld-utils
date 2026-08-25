@@ -10,6 +10,7 @@
 # - RIMWORLD_VERSION: Version of RimWorld (optional, default: 1.6, can also be overridden by command line argument)
 # - EXTRA_FILES: Array of additional files to copy (optional, default: empty)
 # - SKIP_BUILD: If set to true, the build step is skipped (optional, default false)
+# - SKIP_MOD_FOLDER_REMOVAL: If set to true, the target mod folder is not emptied before copying (optional, default false)
 
 set -euo pipefail
 
@@ -43,7 +44,7 @@ CONFIG_FILE="./.vscode/build_config.sh"
 
 # Define allowed variables
 ALLOWED_VARS=(
-    CONFIGURATION MOD_NAME TARGET RIMWORLD_VERSION SKIP_BUILD EXTRA_FILES
+    CONFIGURATION MOD_NAME TARGET RIMWORLD_VERSION SKIP_BUILD SKIP_MOD_FOLDER_REMOVAL EXTRA_FILES
     EXTRA_RW_1_6_FILES EXTRA_RW_1_5_FILES EXTRA_RW_1_4_FILES EXTRA_RW_1_3_FILES
 )
 
@@ -73,6 +74,7 @@ CONFIGURATION="${CONFIGURATION:-Debug}"
 TARGET="${TARGET:-$HOME/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/RimWorld/Mods/$MOD_NAME}"
 RIMWORLD_VERSION="${RIMWORLD_VERSION:-${1:-1.6}}"
 SKIP_BUILD="${SKIP_BUILD:-false}"
+SKIP_MOD_FOLDER_REMOVAL="${SKIP_MOD_FOLDER_REMOVAL:-false}"
 
 case "${SKIP_BUILD,,}" in
     true|1|yes|on)
@@ -94,8 +96,15 @@ dotnet build --configuration "$CONFIGURATION" \
     "$MOD_NAME.sln"
 
 # remove mod folder
-mkdir -p "$TARGET"
-find "$TARGET" -mindepth 1 -delete
+case "${SKIP_MOD_FOLDER_REMOVAL,,}" in
+    true|1|yes|on)
+        echo "Skipping mod folder removal because SKIP_MOD_FOLDER_REMOVAL is set to true."
+        ;;
+    *)
+        mkdir -p "$TARGET"
+        find "$TARGET" -mindepth 1 -delete
+        ;;
+esac
 
 # copy mod files
 mkdir -p "$TARGET"
