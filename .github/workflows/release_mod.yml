@@ -47,6 +47,32 @@ jobs:
                   echo "version=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_OUTPUT
                   echo "no_prefix_version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
+            - name: Checkout Repository
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Check Steam Description for Changes Since Last Release
+              shell: bash
+              env:
+                  CURRENT_TAG: ${{ steps.variables.outputs.version }}
+              run: |
+                  if [ ! -f "SteamDescription.txt" ]; then
+                    echo "::warning file=SteamDescription.txt,title=Steam Description Missing::No SteamDescription.txt found in the repository root."
+                    exit 0
+                  fi
+
+                  previous_tag=$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null || true)
+
+                  if [ -z "$previous_tag" ]; then
+                    echo "No previous release tag found; skipping Steam description change check."
+                    exit 0
+                  fi
+
+                  if ! git diff --quiet "$previous_tag" "$CURRENT_TAG" -- SteamDescription.txt; then
+                    echo "::notice file=SteamDescription.txt,title=Steam Description Changed::SteamDescription.txt has changed since the last release ($previous_tag). Remember to update the Steam Workshop description after this release."
+                  fi
+
             - name: Verify Release Tag Is Signed
               shell: bash
               env:
