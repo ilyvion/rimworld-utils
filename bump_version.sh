@@ -33,10 +33,20 @@ old_version=$(grep -oPm1 '(?<=<VersionPrefix>)[^<]+' "$props_file") || {
     exit 1
 }
 
+# --- Detect whether any release has been tagged yet ---
+first_release="false"
+if [[ -z "$(git tag -l 'v*')" ]]; then
+    first_release="true"
+fi
+
 # --- Require new version ---
 if [[ $# -lt 1 ]]; then
     echo "Usage: $0 <new-version> [--yes] [--allow-staged]"
-    echo "Current version is: $old_version"
+    if [[ "$first_release" == "true" ]]; then
+        echo "No release has been tagged yet (in-project version is: $old_version)"
+    else
+        echo "Current version is: $old_version"
+    fi
     exit 1
 fi
 new_version="$1"
@@ -59,7 +69,11 @@ if git rev-parse -q --verify "refs/tags/v${new_version}" >/dev/null; then
     fi
 fi
 
-echo "Bumping version: $old_version → $new_version ($today)"
+if [[ "$first_release" == "true" ]]; then
+    echo "Preparing first release: $new_version ($today)"
+else
+    echo "Bumping version: $old_version → $new_version ($today)"
+fi
 
 # --- Detect repo URL from changelog ---
 unreleased_line=$(grep -E "^\[Unreleased\]:" "$changelog_file") || {
@@ -113,13 +127,26 @@ else
 fi
 
 # --- Update [Unreleased] link ---
-unreleased_pattern="^\[Unreleased\]: $repo_url/compare/v${old_version}\.\.\.HEAD"
-if grep -Eq "$unreleased_pattern" "$changelog_file"; then
-    sed -i "s|v${old_version}...HEAD|v${new_version}...HEAD|" "$changelog_file"
-    sed -i "/^\[Unreleased\]:/a[${new_version}]: ${repo_url}/compare/v${old_version}..v${new_version}" "$changelog_file"
+if [[ "$first_release" == "true" ]]; then
+    # There is no prior release to diff against, so the new version links to
+    # its tag directly instead of a compare range.
+    unreleased_pattern="^\[Unreleased\]: $repo_url/compare/v[^.]+\.[^.]+\.[^.]+\.\.\.HEAD"
+    if grep -Eq "$unreleased_pattern" "$changelog_file"; then
+        sed -i -E "s|(\[Unreleased\]: ${repo_url}/compare/v)[^.]+\.[^.]+\.[^.]+(\.\.\.HEAD)|\1${new_version}\2|" "$changelog_file"
+        sed -i "/^\[Unreleased\]:/a[${new_version}]: ${repo_url}/releases/tag/v${new_version}" "$changelog_file"
+    else
+        echo "Expected [Unreleased] compare link not found in $changelog_file"
+        exit 1
+    fi
 else
-    echo "Expected [Unreleased] link with v${old_version} not found in $changelog_file"
-    exit 1
+    unreleased_pattern="^\[Unreleased\]: $repo_url/compare/v${old_version}\.\.\.HEAD"
+    if grep -Eq "$unreleased_pattern" "$changelog_file"; then
+        sed -i "s|v${old_version}...HEAD|v${new_version}...HEAD|" "$changelog_file"
+        sed -i "/^\[Unreleased\]:/a[${new_version}]: ${repo_url}/compare/v${old_version}..v${new_version}" "$changelog_file"
+    else
+        echo "Expected [Unreleased] link with v${old_version} not found in $changelog_file"
+        exit 1
+    fi
 fi
 
 # --- Commit only intended files ---
