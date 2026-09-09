@@ -28,7 +28,28 @@ The raw arguments are: $ARGUMENTS
 
 **All modes:** Do not launch the game to do any verification with GABS except to run unit tests as per CLAUDE.md. If any changes need in-game verification, ask the user to do it and report back to you.
 
-When done doing your edits, run `csharpier format .`, then describe the changes made in CHANGELOG.md as a player would understand the changes to be helpful. If the changes makes no discernible difference to the player, skip updating the change log. Run the `commit-message` skill. Do not actually do the commit, let the user inspect and review the result.
+When done doing your edits, run `csharpier format .`, then describe the changes made in CHANGELOG.md as a player would understand the changes to be helpful, following the "Writing a changelog entry" rules below. If the changes makes no discernible difference to the player, skip updating the change log. Run the `commit-message` skill. Do not actually do the commit, let the user inspect and review the result.
+
+### Writing a changelog entry
+
+Write a user-facing changelog entry.
+
+Include only changes that affect users of the released version:
+
+- New capabilities
+- User-visible behavior changes
+- Fixes to problems users could actually encounter
+- Important limitations or migration steps
+
+Exclude:
+
+- Unreleased prototypes or previous designs
+- Internal implementation details
+- Comparisons with unreleased versions
+- Rationale, design history, or "instead of" phrasing unless the previous behavior was publicly released
+- Details that do not help a user decide whether the update matters to them
+
+Do not infer that a contrast belongs in the changelog merely because it appears in the source material. If a detail would make a reader ask "Why do I need to know that?", omit it.
 
 In file mode, mark the `<ISSUE-TARGET>` set as fixed by prefixing them with '✅', e.g. '✅ BUG-1' or '✅ OPP-007'.
 
