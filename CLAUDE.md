@@ -47,9 +47,13 @@ For inspecting assemblies from older versions of Rimworld, there's also these di
 - 1.4: `/home/alex/.var/app/com.valvesoftware.Steam/.steam/steam/steamapps/common/RimWorld/RimWorldLinux_Data/Managed_1.4`
 - 1.5: `/home/alex/.var/app/com.valvesoftware.Steam/.steam/steam/steamapps/common/RimWorld/RimWorldLinux_Data/Managed_1.5`
 
+## Generating game art
+
+- [RimWorld Art Style Guide](rimworld-art-style-guide.md) — Mandatory reference for any agent-generated game art (item icons, buildings, pawns/animals, plants, UI icons, terrain, effects) that needs to fit RimWorld's vanilla visual style and plug correctly into RimWorld's colouring system. Read it before drawing anything, not just when generating UI icons below.
+
 ## Generating UI icons
 
-- [Generating UI icons](icons.md) — Instructions for generating UI icons
+- [Generating UI icons](icons.md) — Instructions for generating UI icons; defers to the art style guide above for the actual visual style.
 
 ## Translations
 
