@@ -2,7 +2,8 @@
     void IlyvionLaboratoryModSharedStatic(
         string modBaseNamespace,
         string modClassName,
-        string classVisibility = "internal")
+        string classVisibility = "internal",
+        string settingsClassName = null)
     {
 #>
 namespace <#=modBaseNamespace#>;
@@ -20,7 +21,7 @@ namespace <#=modBaseNamespace#>;
     /// <summary>
     /// Gets the package ID of the mod.
     /// </summary>
-    public static string PackageId => Instance!.Content.PackageId;
+    public static string PackageId => Instance.Content.PackageId;
 
     public <#=modClassName#>(ModContentPack content)
         : base(content)
@@ -30,6 +31,24 @@ namespace <#=modBaseNamespace#>;
     }
 
     partial void Construct();
+<#
+        if (!string.IsNullOrEmpty(settingsClassName)) {
+#>
+
+    /// <inheritdoc/>
+    public override void DoSettingsWindowContents(Rect inRect) =>
+        Settings.DoSettingsWindowContents(inRect);
+
+    /// <inheritdoc/>
+    protected override bool HasSettings => true;
+
+    /// <summary>
+    /// Gets the settings for the mod.
+    /// </summary>
+    public static <#=settingsClassName#> Settings => Instance.GetSettings<<#=settingsClassName#>>();
+<#
+        }
+#>
 }
 <#
     }
