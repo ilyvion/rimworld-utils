@@ -1168,7 +1168,7 @@ csharp_space_between_square_brackets = false
 csharp_preserve_single_line_statements = false
 csharp_preserve_single_line_blocks = false
 
-[{**/HarmonyPatches/*.cs,**/Patches/*.cs}]
+[{**/HarmonyPatches/*.cs,**/Patches/*.cs,**/Patch/*.cs}]
 dotnet_diagnostic.IDE0051.severity = suggestion
 dotnet_diagnostic.IDE0062.severity = suggestion
 
