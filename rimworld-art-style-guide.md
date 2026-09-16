@@ -225,10 +225,46 @@ for accidentally drawing a face:
   draw enough of that object's recognisable silhouette (the plug's body plus
   prongs, together, as one piece) rather than an abstracted fragment of it.
 - Big, glossy, saturated icon glyphs (e.g. a large single-colour arrow filling
-  most of the face) read as "cartoony" and out of place — vanilla's own
-  small pictograms (see `UI/Commands/` and `UI/Icons/` in §5) are compact,
-  a small fraction of the object's total face, and desaturated/metal-toned
-  rather than bright flat colour fills.
+  most of the face) read as "cartoony" and out of place *when painted onto an
+  in-world object's face* — vanilla's own small pictograms painted onto
+  buildings (see `UI/Icons/` in §5) are compact, a small fraction of the
+  object's total face, and desaturated/metal-toned rather than bright flat
+  colour fills. This does **not** apply to `Command` gizmo icons — see §4d.
+
+## 4d. Command gizmo icons (the bottom-of-screen action buttons) are a different register
+
+The small square icons that appear in the gizmo row at the bottom of the
+screen when something is selected (`UI/Commands/`) follow different rules
+than a pictogram painted onto a building's face (§4b) or an in-world item
+icon (§2.2–§2.3):
+
+- They use **bright, saturated flat fill colours** (not desaturated/metal-
+  toned) **with a bold black outline** — confirmed by direct inspection of
+  `UI/Commands/DesirePower.png` and `UI/Commands/TryReconnect.png`. Don't
+  extrapolate the muted-palette guidance for in-world functional pictograms
+  (§4b) onto these; they're a different visual register with a different
+  purpose (a clickable button that must pop against the bottom UI bar, not
+  a detail integrated into a building's rendered face).
+- At the 64×64 canvas / ~32-40px on-screen size these are actually shown at,
+  a **3px outline reads as bold and clean; 4px starts to read as thick/heavy**
+  once anti-aliased down — prefer 3px for the outer silhouette stroke of a
+  Command icon, reserving thinner (~2px) strokes for internal
+  detail/segmentation lines that shouldn't compete with the outer outline.
+- When a glyph needs multiple visually-adjacent parts (e.g. an arrowhead
+  feeding into a body shape), merge the parts that touch or overlap into a
+  **single polygon** rather than drawing them as separate stroked shapes
+  placed next to each other. Two separate stroked shapes that touch or
+  overlap produce a double-stroke seam at the shared edge that reads as a
+  rendering glitch, not a design choice — even though this is a variant of
+  the same "single self-contained glyph" principle as §4b, it's worth
+  calling out separately because the failure mode here is a visual artifact
+  (crossed/doubled outlines) rather than pareidolia.
+- A glyph meant to read as a specific real-world symbol (e.g. an electronic
+  diode's triangle-and-bar) benefits from a couple of short straight lead
+  lines extending from either side of the main shape, matching that symbol's
+  conventional schematic form — without them it can easily be misread as an
+  unrelated glyph (a bare triangle-and-bar read as a media player's "next
+  track" button rather than a diode).
 
 ## 4c. Verify palette and proportion claims against real source pixels
 
