@@ -187,6 +187,23 @@ jobs:
                     echo "::notice::No PublishedFileId.txt found; skipping Steam Workshop upload. This is expected before the mod has been published to Steam for the first time."
                   fi
 
+            - name: Check Steam Credentials Are Set
+              if: ${{ inputs.upload_to_steam && steps.published_file_id_check.outputs.exists == 'true' }}
+              env:
+                  STEAM_USERNAME: ${{ secrets.STEAM_USERNAME }}
+                  STEAM_PASSWORD: ${{ secrets.STEAM_PASSWORD }}
+                  STEAM_TFASEED: ${{ secrets.STEAM_TFASEED }}
+              run: |
+                  missing=()
+                  [ -z "$STEAM_USERNAME" ] && missing+=("STEAM_USERNAME")
+                  [ -z "$STEAM_PASSWORD" ] && missing+=("STEAM_PASSWORD")
+                  [ -z "$STEAM_TFASEED" ] && missing+=("STEAM_TFASEED")
+
+                  if [ "${#missing[@]}" -gt 0 ]; then
+                    echo "::error::Missing required secret(s) for Steam Workshop upload: ${missing[*]}"
+                    exit 1
+                  fi
+
             - name: Converts Markdown to Steam markup
               if: ${{ inputs.upload_to_steam && steps.published_file_id_check.outputs.exists == 'true' }}
               id: markdown_steam
