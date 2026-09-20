@@ -1,0 +1,418 @@
+# DevTools (SmashPhil) reference
+
+Reference for agents converting RimWorld mod unit tests from **RimTest Redux** (`../RimTest`, `[TestSuite]`/`[Test]`, fluent `Assert.That(..)`) to **DevTools** (https://github.com/SmashPhil/DevTools, branch `develop`, C# namespace `DevTools`/`DevTools.Testing`). Everything below was verified against the DevTools source at commit `6cb2a5b` (2026-09-20) unless marked _(unverified)_. Paths in parentheses are relative to the DevTools repo root; the library lives in `DevTools/`.
+
+Contents: [Overview](#overview) · [Referencing and discovery](#referencing-and-discovery) · [Writing tests](#writing-tests) · [Assertions](#assertions-expect) · [RimTest Redux translation](#rimtest-redux--devtools-translation) · [Retrieving test results (agents)](#retrieving-test-results-agents) · [Launching](#launching-tests) · [Gotchas](#gotchas) · [Helper types](#helper-types)
+
+## Overview
+
+DevTools is an SDK, not a standalone mod: the repo has no `About.xml`. Its `DevTools.dll` (net48, `AssemblyName` `DevTools`, version 1.6.0) is dropped into a host mod's `Assemblies` folder and initialises itself from a `[StaticConstructorOnStartup]` class (`DevTools/DevHarmony.cs`). It targets **RimWorld 1.6 only** (`Krafs.Rimworld.Ref 1.6.*`, `Lib.Harmony.Ref 2.4.2`, uses `PlanetTile`, Odyssey; `DevTools.csproj`).
+
+Subsystems (each is an `IDevTool` registered per running mod, and only if that mod's assemblies contain a matching type):
+
+| Subsystem | Marker | Purpose |
+|---|---|---|
+| Unit tests (`TestFixtureManager`) | `[TestFixture(TestType)]` classes with `[Test]` methods | In-game unit tests with scene management (main menu / generated world+map / post-game main menu), setup/teardown, parameterised tests, coroutine tests, retries, filters, log-failure detection, Test Explorer UI |
+| Smoke tests (`SmokeTestManager`) | internal `[SmokeTest]` | Built-in startup-log check; `--smoke-test` |
+| Test plans (`TestPlanManager`) | `<mod>/TestPlans/*.xml` | Spawn child game processes with specific mod lists and CLI args; parent waits for exit code |
+| Benchmarks (`BenchmarkManager`) | `[BenchmarkClass]`, `[Benchmark]`, `[Prepare]`, `[OnFinish]`, `[Context]`, `[Measurement]`, `[Table]`, `[Graph]` | Micro-benchmark harness on static methods, results in a table dialog or `Log.Message` |
+| UI | `Dialog_TestExplorer`, `Dialog_TestSuspension`, `DataTable`, `BarChart`/`Graph` | Test Explorer window (tree, status icons, duration, error message, summary panel, "Open Log") |
+| Dev-mode entry | Harmony postfix on `DebugWindowsOpener.DrawButtons` | Adds a "DevTools" icon button to the dev-mode debug-windows row |
+
+The `feature/quickactions` (startup actions) and `microbenchmarks` / `parametric-tests` branches are unmerged; `develop` is the default branch and the only one described here.
+
+## Referencing and discovery
+
+- **No mod dependency / packageId** is needed for tests themselves: DevTools scans every running mod (`LoadedModManager.RunningModsListForReading`), and for each `mod.assemblies.loadedAssemblies` calls `GetTypes()` looking for `[TestFixture]` (`DevHarmony.LoadTypes`). The test assembly must therefore be an assembly loaded by a mod content pack (i.e. sit in a folder listed in `LoadFolders.xml` / the mod's `Assemblies`). DevTools registers the tool for a mod only if it found at least one fixture in that mod's assemblies.
+- **DevTools.dll must itself be loaded** by some active mod: RimWorld loads it as a plain assembly from a mod's `Assemblies` folder. `DevTools.csproj` sets `OutDir` to `..\..\1.6\Assemblies\` (two directories above the csproj directory), i.e. it is meant to be cloned as a directory at the mod root (`<Mod>/DevTools/DevTools/DevTools.csproj`, output `<Mod>/1.6/Assemblies/DevTools.dll`). When consuming it as a `ProjectReference` from another repo, override `OutDir`/`OutputPath` (global property) or copy the built DLL to where the game loads it.
+- Test project references: `DevTools` (project or DLL, `Private=false` unless it is the copy that ships to the game). Test code needs `using DevTools.Testing;` (and `using DevTools;` for `MapUtils`, `RandBlockPersistent`, `StackTraceCacheDisabler`). Verse/RimWorld/UnityEngine come from `rimworld-utils/globalusings.cs`.
+- **Build requirements**: `DevTools.csproj` uses `LangVersion=preview`, `TreatWarningsAsErrors=true`, and C# 14 features (`field` keyword, `extension<T>(...)` blocks in `DevUtils.cs`), so it needs the .NET 10 SDK (10.0.111 is installed locally alongside 9.0.120). Configurations: `Debug`/`ReleaseTesting` define `UNITY_ASSERTIONS`, `Release` does not. Restore uses NuGet (`Krafs.Rimworld.Ref`, `Lib.Harmony.Ref`); `packages.config` is legacy.
+- **Fetching (CI/local)**: there is no README instruction, submodule, NuGet package, release artifact, or GitHub Action in the repo (README is 2 lines: "Developer tools for rimworld mods"). The remote is `https://github.com/SmashPhil/DevTools.git`, default branch `develop` (`origin/HEAD -> origin/develop`), no tags. The local clone is `/home/alex/Documents/Projects/RimWorld/Third-Party/DevTools`. The sibling-repo pattern used for RimTest (`$(ProjectDependenciesBasePath)\RimTest\...` via `rimworld-utils/Common.props`, `ProjectDependenciesBasePath` default `..\..\..`) would require CI to `actions/checkout` `SmashPhil/DevTools` at a pinned SHA into that location; `rimworld-utils/.github/workflows/build_mod.yml` currently only checks out the mod and `ilyvion/rimworld-utils` (no RimTest checkout), and test projects are not built in Release. CI therefore needs no DevTools step today (a Release restore of the `.sln` works without a checkout). If tests are ever run in CI: add an `actions/checkout` of `SmashPhil/DevTools` (`develop`) to the mod's `post_checkout_hook`, moved to `../Third-Party/DevTools`, plus a .NET 10 SDK.
+- **LoadFolders / About.xml**: no `IfModActive` gate is possible because DevTools has no packageId. Put `DevTools.dll` and the test assembly in the mod's always-loaded `<version>/Assemblies` (gitignored) and keep them out of releases by leaving the test project out of the Release build (see "Project setup used by RealisticOrbitalTrade"; verified in a live run).
+- **Discovery timing**: at startup from `[StaticConstructorOnStartup]` (defs are loaded). `TestFixtureManager.Init` sorts by execution priority, loads `Configs/UnitTestConfig.xml`, and does a dry-run discovery (`Test.Discover`). If two mods each ship a `DevTools.dll`, behaviour is unknown _(unverified)_.
+- Exceptions from `assembly.GetTypes()` (e.g. `ReflectionTypeLoadException`) are not inside the per-type `try` in `DevHarmony.TryLoadDevTool`; a mod assembly with unloadable types would break discovery for that tool.
+
+## Writing tests
+
+### Fixtures (test classes)
+
+```csharp
+using DevTools.Testing;
+
+namespace MyMod.Tests;
+
+[TestFixture(TestType.MainMenu)]
+internal class WithCountTests           // NOT static
+{
+    [Test]
+    public void CopiesAllFields()       // instance or static both work
+    {
+        Expect.AreEqual(4, copy.count);
+    }
+}
+```
+
+- `[TestFixture(TestType)]` on a class (`Testing/Test/Attributes/TestFixtureAttribute.cs`). **Static classes are silently skipped** (`type.IsAbstract` is true for static classes, `TryRegisterType` returns false without logging). A fixture must be non-abstract and have **exactly one public instance constructor**, otherwise `Log.Error("Unable to register X. It must have 1 public constructor.")` (`TestFixtureManager.TryRegisterType`). An implicit default constructor on an `internal` class satisfies this.
+- A **new instance is created per fixture run** (`Activator.CreateInstance`), shared across all `[Test]` methods of that fixture (fields persist between tests in the same run; not re-created per test). Setup/teardown and tests receive that instance; static test methods are invoked with it ignored.
+- Fixture name = `Type.Name` (no namespace) in logs and UI; registry key is `Namespace.Name` (+ ctor args); a duplicate key is dropped silently (`TryAdd`).
+- `TestType` values: `MainMenu` (default program state, no game loaded), `Playing` (fresh world + map generated first, `Find.CurrentMap` valid), `PostGameExit` (game generated, then exits to main menu, tests run there). Fixtures run ordered by `TestType` (MainMenu, Playing, PostGameExit), then `[ExecutionPriority]` (higher first, `Priority.First = int.MaxValue`).
+- Scene changes happen only when the type changes (or the fixture has a save/custom game settings). Consecutive `Playing` fixtures share one map.
+
+### Attributes
+
+| Attribute | Target | Meaning |
+|---|---|---|
+| `[TestFixture(TestType)]` | class | Marks a fixture |
+| `[Test]` | method | A test. `void` = sync; `IEnumerator` = coroutine test (see below) |
+| `[TestCase(args..., ExpectedResult = x)]` (`AllowMultiple`; inherits `[Test]`) | method | Inline args; compares return value to `ExpectedResult` (floats via `Assert.AreApproximatelyEqual`, else `Assert.AreEqual`) |
+| `[SetUp]` / `[TearDown]` | method (`void` only) | Before/after each test. Multiple allowed, ordered by `[ExecutionPriority]`. TearDown runs in a `finally` |
+| `[OneTimeSetUp]` / `[OneTimeTearDown]` | method | Once per fixture run |
+| `[Parameters(a, b, ...)]` | test-method or **fixture-constructor** parameter | Inline values, one test/fixture per value. Only **one** parameter allowed per method/ctor |
+| `[ParametersSource("name")]` / `[ParametersSource(typeof(T), "name")]` | parameter | Static field (array) or static method returning `IEnumerable` |
+| `[DefParameters(params string[] packageIds)]` / `[DefParameters(typeof(T), "filterMethod", packageIds...)]` | parameter of `Def` type | All defs of that type (optionally from given mods, filter is a static `bool F(Def)`) |
+| `[Retry(n)]` | method | Retry a failed test up to `n` more times (also global `retryOnFailure` -> 1) |
+| `[Disabled]` | class/method | Excluded entirely |
+| `[ExecutionPriority(int or Priority)]` | class/method | Ordering (higher first) |
+| `[TestCategory("a", "b")]` | class/method | Filterable metadata (`category`) |
+| `[TestDescription("...")]` | class/method | Tooltip in Test Explorer |
+| `[LoadSave("file")]` | class | Load this save instead of generating a game |
+| `[LoadIfModsActive(ids...)]`, `[LoadIfAnyModsActive(ids...)]` | class/method | Skip registration unless mods are active (`ModLister.AllModsActiveNoSuffix`) |
+| `[LoadIfRoyaltyActive]`, `[LoadIfIdeologyActive]`, `[LoadIfBiotechActive]`, `[LoadIfAnomalyActive]`, `[LoadIfOdysseyActive]` | class/method | DLC gates |
+
+There is no `[Ignore]`, `[Explicit]`, `[Timeout]`, `[ShouldThrow]`, or `[Values]`. `HideInUI` is internal.
+
+Fixture-level game settings are declared by implementing interfaces on the fixture class (`Testing/Test/Interfaces`): `IWorldGeneration { WorldGenerationSettings WorldGenerationSettings {get;} }`, `IMapGeneration { MapGenerationSettings MapGenerationSettings {get;} }`, `IScenario { Scenario Scenario {get;} }`, `IStoryteller { Storyteller Storyteller {get;} }`. Any of them makes the fixture regenerate the game/map; the environment is restored to default for the next fixture. `MapGenerationSettings` fields: `size` (150), `biome`, `mapGeneratorDef`, `extraGenStepDefs`, `postGenerationActions` (`List<Action>`), `Faction`. The default map is an all-concrete empty map with roofs and non-pawn things cleared (`MapGenerationSettings.Default`, `GenStep_EmptyMap`). `WorldGenerationSettings` fields: `percent` 0.05, `startingSeason` Summer, `startingPawnsRequired`, etc.
+
+### Test lifecycle (`TestRunner.TestRoutine`)
+
+1. `LongEventHandler.ExecuteWhenFinished` then a Unity coroutine (`CoroutineObject`) on the main thread; `Application.runInBackground = true` for the duration; one frame skipped.
+2. Seed: `Rand` is fixed (`randSeed` from config or random; `Starting tests with seed: N` is logged).
+3. Per fixture: create instance -> scene change if needed -> `TestType.Playing`: camera jump to map -> pre-test actions (config) -> `[OneTimeSetUp]` -> for each test: (`[SetUp]` -> test -> `[TearDown]`) with retries -> `[OneTimeTearDown]` -> post-test actions -> log fixture results.
+4. Each fixture and each test is wrapped in a `LogWatcher`: **any `Log.Warning`/`Log.Error`/exception logged during it fails the test** unless whitelisted (config `failOnWarnings`/`failOnErrors`, default both `true`; `warningsAllowed`/`errorsAllowed` regex lists).
+5. At the end the game returns to the main menu, then `OnTestRunnerEnd`: optional report, and either `Application.Quit` (if `--exit`) or opens the Test Explorer.
+
+### Coroutine (multi-tick) tests
+
+A `[Test]` method returning `IEnumerator` is driven by the runner coroutine (`TestFunction.ExecuteRoutine`); exceptions inside are caught and fail the test. Yield `null` (next frame) or any Unity yield instruction:
+
+```csharp
+[Test]
+public IEnumerator PawnFinishesJob()
+{
+    Pawn pawn = ...;
+    yield return new WaitTicks(60);                                  // game ticks
+    yield return new WaitUntilTimeout(() => pawn.Dead, maxTicksToWait: 600); // Test.Fail("Timed out") on timeout
+    yield return pawn.WaitJob(JobDefOf.Wait, timeoutTicks: 2500);            // WaitJobType.StartsJob | StartsAndFinishesJob | DoesntStartJob
+    yield return Test.Suspend(secondsTimeOut: 30, "Inspect the map");        // dialog; -1 = wait for close
+}
+```
+`WaitTicks`, `WaitUntilTimeout`, `WaitJob` count `Find.TickManager.TicksGame`; they only progress if the game is actually ticking (nothing in DevTools unpauses or sets speed) _(unverified in a live run)_. Async/`Task` and threads are not supported: tests run on the main thread.
+
+### Creating maps, pawns, things
+
+There are no factories for pawns/things. Use vanilla APIs (`ThingMaker.MakeThing`, `PawnGenerator.GeneratePawn`, `GenSpawn.Spawn`) on `Find.CurrentMap` in a `TestType.Playing` fixture, and clean up with `ScopeEntity`/`ScopeWorldObject`/`ScopeWindow` or `MapUtils.KillEverything(map)`. Pure-logic tests that only use `new Pawn()` / `new Thing()` (as the RimTest Redux tests do) work in `TestType.MainMenu`.
+
+## Assertions (`Expect`)
+
+`DevTools.Testing.Expect` (`Testing/Expect.cs`) is the assertion class. It is **non-throwing and non-fluent**: each call records status on the current test and execution continues; the first failure's context/message is kept (`??=`). `Expect` outside a running test logs `Log.Error("Using Expect outside of test watcher...")`. Every method takes an optional trailing `string message = null` (shown as the fail label). `UnityEngine.Assertions.Assert` also works but throws (and only when `UNITY_ASSERTIONS` is defined in the calling assembly, otherwise the calls are compiled out); exceptions are caught by `Test.Fail(ex)`. Prefer `Expect`.
+
+Full surface:
+
+| Method | Passes when |
+|---|---|
+| `That(Func<bool> validator, msg)` | validator() true |
+| `IsTrue(bool, msg)` / `IsFalse(bool, msg)` | |
+| `IsNull<T>(T, msg)` / `IsNotNull<T>(T, msg)` (`T : class`) | `obj == null` / `!= null` |
+| `AreEqual<T>(T expected, T actual, msg)` / `AreNotEqual` | `EqualityComparer<T>.Default` |
+| `AreApproximatelyEqual(float expected, float actual, msg)` / `AreNotApproximatelyEqual` | Unity `FloatComparer` default tolerance |
+| `ReferencesAreEqual<T>(expected, actual)` / `ReferencesAreNotEqual` (`T : class`) | `ReferenceEquals` |
+| `GreaterThan<T>(value, operand)`, `GreaterThanOrEqualTo`, `LessThan`, `LessThanOrEqualTo` (`T : IComparable`) | `value <op> operand` |
+| `IsEmpty<T>(IEnumerable<T>)` / `IsNotEmpty` | no elements / any element |
+| `All<T>(items, Func<T,bool>)`, `Any`, `None` | predicate quantifiers |
+| `T Throws<T>(Action, msg)` (`T : Exception`) | action throws `T` (or subtype); returns the exception |
+
+Other test-control methods on `Test`: `Test.Fail(string message, string failureMessage = null)`, `Test.Fail(Exception)`, `Test.Skip(msg)`, `Test.Cancel(msg)` (all only set status; **the test method keeps executing**, `return` yourself), `Test.Current` (`ITestGroup`), `Test.Suspend(...)`.
+
+Gaps: no collection `Count`/`Contains`/element-equality (`SequenceEqual`), no string assertions, no `IsInstanceOf`, no `Between`, no fluent/negation grammar, no message-lambda overloads. Use `Expect.AreEqual(n, list.Count)`, `Expect.IsTrue(list.Contains(x))`, `Expect.That(() => a.SequenceEqual(b))`.
+
+## RimTest Redux -> DevTools translation
+
+Argument order matters: `AreEqual(expected, actual)`.
+
+### Structure
+
+| RimTest Redux | DevTools |
+|---|---|
+| `using RimTestRedux;` | `using DevTools.Testing;` |
+| `[TestSuite] internal static class X` | `[TestFixture(TestType.MainMenu)] internal class X` (**remove `static`**; default ctor is fine) |
+| `[Test] public static void T()` | `[Test] public static void T()` works as is, or make it an instance method |
+| `[BeforeEach]` (max one, static) | `[SetUp]` (may stay static) |
+| `[AfterEach]` (max one, static, always runs) | `[TearDown]` (may stay static; runs in `finally`) |
+| (none) | `[OneTimeSetUp]`, `[OneTimeTearDown]`, `[TestCase]`, `[Parameters]`, `[Retry]`, `[TestCategory]`... |
+| `[ShouldThrow]` / `[ShouldThrow(typeof(E))]` | no attribute; body: `Expect.Throws<E>(() => ...)` (use `Exception` for any) |
+| tests needing a live map | `[TestFixture(TestType.Playing)]` |
+| log errors are captured and do not fail | logged warnings/errors **fail the test** (see Gotchas) |
+
+### Assertions
+
+| RimTest Redux | DevTools |
+|---|---|
+| `Assert.That(x).Is.True()` | `Expect.IsTrue(x)` |
+| `Assert.That(x).Is.False()` | `Expect.IsFalse(x)` |
+| `Assert.That(x).Is.EqualTo(y)` | `Expect.AreEqual(y, x)` (uses `Equals`, RimTest used `CompareTo == 0`; cast enums/ints as before) |
+| `Assert.That(x).Not.EqualTo(y)` | `Expect.AreNotEqual(y, x)` |
+| `Assert.That(x).Is.GreaterThan(y)` | `Expect.GreaterThan(x, y)` |
+| `Assert.That(x).Not.GreaterThan(y)` | `Expect.LessThanOrEqualTo(x, y)` |
+| `Assert.That(x).Is.LessThan(y)` / `Not.LessThan(y)` | `Expect.LessThan(x, y)` / `Expect.GreaterThanOrEqualTo(x, y)` |
+| `Assert.That(x).Is.BetweenInclusive(a, b)` | `Expect.GreaterThanOrEqualTo(x, a); Expect.LessThanOrEqualTo(x, b);` (no equivalent) |
+| `BetweenExclusive(a, b)` | `Expect.GreaterThan(x, a); Expect.LessThan(x, b);` |
+| `Assert.That(x).Is.Null()` / `Not.Null()` | `Expect.IsNull(x)` / `Expect.IsNotNull(x)` (`T : class`; nullable value types need `Expect.IsTrue(x == null)`) |
+| `SameValueAs(y)` | `Expect.AreEqual(y, x)` |
+| `SameReferenceAs(y)` | `Expect.ReferencesAreEqual(y, x)` |
+| `Assert.ThatCollection(c).Has.Count(n)` | `Expect.AreEqual(n, c.Count())` (`System.Linq`) |
+| `Assert.ThatCollection(c).Is.Empty()` / `Not.Empty()` | `Expect.IsEmpty(c)` / `Expect.IsNotEmpty(c)` (generic `IEnumerable<T>`; non-generic collections need `.Cast<object>()`) |
+| `Assert.ThatCollection(c).Does.Contain(item)` | `Expect.IsTrue(c.Contains(item))` (or `Expect.Any(c, e => Equals(e, item))`) |
+| `Assert.ThatCollection(c).Does.Not.Contain(item)` | `Expect.IsFalse(c.Contains(item))` or `Expect.None(c, e => Equals(e, item))` |
+| `Assert.ThatFunc(() => ...).Throw()` / `Assert.ThatFunc(Action).Throw()` | `Expect.Throws<Exception>(() => ...)` |
+| `Assert.ThatFunc(...).Not.Throw()` | call the code directly (an exception fails the test) |
+| `Assert.That(null-able).Is.EqualTo` on a null value | RimTest fails with "non-null required"; `Expect.AreEqual` compares nulls normally |
+
+Features the RealisticOrbitalTrade tests use: `[TestSuite]` static class, `[Test]` static void, `[BeforeEach]`/`[AfterEach]`, `Assert.That(..).Is.True()/False()/EqualTo()/Not.GreaterThan()`, `Assert.ThatCollection(..).Has.Count()/Is.Empty()/Does.Contain()`, ad-hoc `new Pawn()`/`new Thing()`/`new ThingDef`, `MemoryStream` scribe round-trips. All are covered by the table. Because tests are `internal static`, the enclosing project's `InternalsVisibleTo` still applies unchanged.
+
+Wholesale-conversion mechanics: make each `[TestSuite] static class` a non-static `[TestFixture(TestType.MainMenu)]` class, rename `[BeforeEach]`/`[AfterEach]`, rewrite each `Assert.*` per the tables, and keep the `[Test]` methods static or not. A mechanical rewrite of `Assert.That(a).Is.EqualTo(b)` to `Expect.AreEqual(b, a)` swaps operands.
+
+## Retrieving test results (agents)
+
+**DevTools does not write results to `Player.log`.** There is no `TESTING START`/`END` marker and no end-of-run summary line. Results go to a separate file written by `DevLog`.
+
+### Where results are written
+
+- File: `Test.log` (`Logger.Config.LogFileName`) in `Logger.Config.folder`, default `Application.persistentDataPath` (Linux/Unity: `~/.config/unity3d/Ludeon Studios/RimWorld by Ludeon Studios/`; under Flatpak Steam: `~/.var/app/com.valvesoftware.Steam/.config/unity3d/Ludeon Studios/RimWorld by Ludeon Studios/`) _(path not confirmed in a live run; `-savedatafolder` does not change Unity's persistent data path)_. Override the folder via `Configs/UnitTestConfig.xml` in the mod root (`Ext_TestManagers.LoadConfig` reads `<mod.RootDir>/Configs/UnitTestConfig.xml`):
+
+```xml
+<TestConfig>
+  <log>
+    <folder>/absolute/path/writable/by/the/game</folder>   <!-- alias: filePath -->
+    <verboseLogging>true</verboseLogging>                  <!-- default true: passing tests are logged too -->
+    <maxFileSize>10485760</maxFileSize>                    <!-- bytes; further messages are dropped -->
+    <writer>Full.Type.Name</writer>                        <!-- ILogWriter, default TextLogWriter -->
+    <report>DevTools.Testing.MarkdownReport</report>       <!-- ITestReport, default none -->
+  </log>
+  <failOnWarnings>true</failOnWarnings>
+  <failOnErrors>true</failOnErrors>
+  <warningsAllowed><li>regex</li></warningsAllowed>
+  <errorsAllowed><li>regex</li></errorsAllowed>
+  <randSeed>12345</randSeed>
+  <stopOnFailure>false</stopOnFailure>
+  <retryOnFailure>false</retryOnFailure>
+</TestConfig>
+```
+(Field names are the public fields of `TestConfig`/`Logger.Config`; the file is optional, defaults apply when absent. XML shape and `Type`-valued fields are expected to work through `DirectXmlLoader` but were not exercised _(unverified)_.)
+
+- The first logger instance (mutex owner) truncates `Test.log` at the start of each run (`FileMode.Create`); a second concurrent game instance appends.
+- Messages are dropped once the file exceeds `maxFileSize` (10 MB) and **`Logger.Write` also drops every message if the log file does not exist** (`Logging/Logger.cs`).
+- Flushed after each fixture (`DevLog.Flush()`) and on logger disposal at the end of the run. If the game crashes or the coroutine dies mid-run, completed fixtures are in the file (as flushed) but nothing marks the run as incomplete.
+
+### Exact output format (`Test.LogResults`, `Test.StatusMessage`)
+
+Header written when the log opens (`TextLogWriter.PostInit`, only if the file already exists at that point):
+```
+{DateTime.Now:"g" current culture}
+<blank line>
+Starting tests with seed: {seed}
+<blank line>
+```
+Per fixture (written after the fixture finishes; blank line after each fixture):
+```
+[Passed]    {FixtureName}
+--	[Passed]    {TestName}
+--	[Passed]    {TestName(arg1, arg2)}
+<blank>
+```
+Line = `{Status label}{padding} {Label}`; padding: `[Failed]` + 4 spaces total before the label, `[Passed]` 4, `[NotRun]` 4, `[Canceled]` 2, `[Skipped]` 3, `[Pending]` 3 (the label constants are `[Failed]`, `[Canceled]`, `[Skipped]`, `[Passed]`, `[Pending]`, `[NotRun]`). Function lines are prefixed by `--` + a TAB. Passing lines are written only when `verboseLogging` is true (default). **Failed lines are always written**, followed by a stack trace.
+
+Failed line shape (fixture line and each failing test line):
+```
+[Failed]    {Label}  {TestContext}  {FailLabel}  {FailMessage}
+{Exception.ToString()}                      <- only when an exception was thrown
+{StackTrace}                                <- Exception.StackTrace, else the assertion-site StackTrace
+```
+- `TestContext` is the assertion name (`AreEqual`, `IsTrue`, `Throws`, ...), `Test.Fail`'s context (`Test.Fail`, `Exception thrown!`, ...); `FailLabel` is your `message` argument; `FailMessage` from `MessageBuilder`, e.g.
+  - `AreEqual(5, 4)`: `Assertion failure. Values are not equal.` + newline + `Expected: Expected 5 == 4`
+  - `IsTrue(false)`: `Assertion failure. Value was False` + newline + `Expected: True`
+  - `GreaterThan(1, 2)`: `Assertion failure. Value was not > 2` + newline + `Expected: 1 > 2`
+  - `IsNull(x)`: `Assertion failure. Value was not Null` + newline + `Expected: Value was Null`
+  - Logged warning/error: `TestContext` `Logged error not whitelisted for tests.` (or `warning`), `FailMessage` = `"{log text}"` + newline + Unity stack trace.
+- Failure info propagates upward: the fixture's line shows the last failure recorded in its children; a failing test therefore appears twice (fixture line, test line).
+- Skips/cancels via `Test.Skip`/`Test.Cancel` are logged only at verbose level (`[Skipped]`, `[Canceled]`); they are not failures.
+- With `--exit` (see below) the last line written is `Test runner finished. Result: Passed` or `Test runner finished. Result: Failed` (`TestFixtureManager.OnTestRunnerEnd`; `Failed` = any fixture status `Failed`).
+
+No per-run totals are logged. Counts must be derived by grepping lines, or by a markdown report (below).
+
+### Machine-friendly mechanisms that exist
+
+| Mechanism | Detail |
+|---|---|
+| **Process exit code** | With `--exit` (or `-batchmode`), `Application.Quit(1)` if any fixture failed else `Application.Quit(0)` (`TestFixtureManager.cs`, `SmokeTestManager.cs`, `TestPlanManager.cs`). Only reached if the runner completes; a crash or an exception escaping the runner coroutine (e.g. a throwing fixture constructor, exceptions during scene change outside handled paths) leaves the game running with no end line. |
+| **Auto-run + auto-quit CLI** | `--pid <packageId> --test [--filter "<expr>"] --exit` (details below). |
+| **Custom log output** | `ILogWriter` (`PostInit`, `Flush`, `WriteLine(string)`, `Dispose`; public ctor taking `Logger`) chosen via `<log><writer>`; see custom output below. |
+| **Custom report** | `ITestReport.Tabulate(string directoryPath, List<ITestGroup> modules)` via `<log><report>`; built-in `DevTools.Testing.MarkdownReport` writes `<folder>/test-report.md` (UTF-8 with BOM, overwritten each run, only for the unit-test manager, at run end before exit). |
+| **In-process API** | `TestRunner.Active` / `TestRunner.Current` (public static), `event Action<bool> TestRunner.OnTestRunnerStateChange` (true at start, false at end), `Test.GetGroups(ITestManager)` (tree of `ITestGroup` with `Status`, `FailMessage`, `Exception`, `StackTrace`, `Duration`). Obtaining the manager instance requires `DevHarmony.GetDevTool<TestFixtureManager>(mod)` (internal class; needs Krafs.Publicizer or a bridge that can evaluate reflection). There is no built-in GABP/RimBridge endpoint. |
+| Files other than `Test.log` and `test-report.md` | none (no JSON/XML/JUnit output). |
+
+`MarkdownReport` output includes the grep-able summary sentence
+`{completed} tests were completed in {time} with {passed} passed, {failed} failed, and {skipped} skipped.` (durations `1.23s` or `12.34ms`) and a shields.io badge line `https://img.shields.io/badge/Tests-{passed}%20passed[%2c%20{failed}%20failed]-{success|red}`, plus per-fixture tables and `<pre>` failure blocks with HTML-encoded messages. Counts exclude `NotRun`.
+
+### Custom output formatting: CONFIRMED
+
+The user's recollection is correct. Commits `f58913b` ("Add writer and report interfaces for custom logging and reporting implementations") and `7e73e91` ("Add ILogWriter and ITestReport for configurable logging and test report generation") add `ILogWriter` and `ITestReport`, selected by type name in `Configs/UnitTestConfig.xml`. Formatting of individual lines (`Test.StatusMessage`) is fixed; you customise the sink (`ILogWriter`, receives already-formatted strings) and get a structured post-run hook (`ITestReport`, receives the full `ITestGroup` tree). There are no output templates or XML defs.
+
+Sketch of a sink that mirrors DevTools output into `Player.log` with markers so the existing RimTest-style `until grep -q ... Player.log` flow works _(untested)_:
+
+```csharp
+internal sealed class PlayerLogWriter : ILogWriter
+{
+    public PlayerLogWriter(Logger logger)
+    {
+        // Logger drops every message unless this file exists.
+        if (!File.Exists(logger.LogConfig.FullPath))
+            File.WriteAllText(logger.LogConfig.FullPath, string.Empty);
+    }
+    public void PostInit() => Log.Message("[DevTools] TESTING START");
+    public void Flush() { }
+    public void WriteLine(string message) => Log.Message("[DevTools] " + message);
+    public void Dispose() => Log.Message("[DevTools] TESTING END");  // runs when the runner finishes
+}
+```
+with `<writer>MyMod.Tests.PlayerLogWriter</writer>`. Failed lines also reach `Log.Message` (not warnings), so they do not trip the failure watcher. `Dispose` runs on runner completion (`DevLog.DisableLogger` in a `using`), also when the run throws, but not on a hard crash.
+
+### Recommended grep-able approach (no custom code)
+
+1. Launch with `--pid <packageId> --test --exit` (see below), redirect nothing; the game exits when done.
+2. Wait on the end line (no sleeps or timeouts): `until grep -q "Test runner finished. Result:" "<folder>/Test.log" 2>/dev/null; do sleep 2; done`. Delete the old `Test.log` before launching (`gabs-launch.sh` does), otherwise the previous run's end line satisfies the wait.
+3. Pass/fail: `grep -c "^\[Failed\]" Test.log` (fixture-level failures) and `grep -P "^--\t\[Failed\]" Test.log` (failed tests); `grep -P "^--\t\[Passed\]" Test.log | wc -l` for passes; the final `Test runner finished. Result: Passed|Failed` line; game exit code (1 = failures). Read the failing lines plus the following stack-trace lines for details.
+4. Also grep `Player.log` for `Unable to register` / `must have 1 public constructor` / `Unable to fetch parameters` (discovery errors are `Log.Error` in `Player.log`, and a run with zero discovered fixtures produces no `Test.log` results at all: absence of `[Passed]`/`[Failed]` lines with a finished game means nothing ran).
+5. Without `--exit`, the runner ends by opening the Test Explorer window and the game keeps running; the end-of-run line is then **not** written, so only per-fixture lines exist and you cannot detect completion from the log alone. Use `--exit`, a custom `ILogWriter`, or a `MarkdownReport`.
+
+Cases where the summary/end line is missing: run without `--exit`; runner coroutine aborted by an unhandled exception (fixture constructor throws, scene-change exception not routed to `FailTestWhileTransitioning`); game crash or hang; log file over `maxFileSize`; `TestPlan`/`Smoke` managers behave the same for the end line but generate no report.
+
+### Verified workflow (GABS launch inputs; RealisticOrbitalTrade, 269 tests)
+
+`gabs-launch.sh` (this repo) supports it; the GABS game config declares the launch inputs (GABS >= 1.1.0; `games_show` lists the declared inputs):
+
+```json
+"launchInputs": {
+  "runTests":   { "description": "Run the DevTools test suite, then quit the game", "type": "boolean", "args": ["--test", "--exit"] },
+  "testFilter": { "description": "DevTools filter expression, e.g. class == WithCountTests", "type": "string",
+                  "pattern": "[A-Za-z0-9_.=!~&| -]+", "args": ["--filter", "${value}"] }
+}
+```
+Start with the GABS MCP tool: `games_start {"gameId": "<game-id>", "launchInputs": {"runTests": true, "testFilter": "class == WithCountTests"}}` (`testFilter` optional; the result's `appliedLaunchInputs` confirms them, and `started_bridge_pending` is expected).
+- `gabs-launch.sh` forwards those args to the game; when `--test` is present it adds `--pid <packageId from About/About.xml>`, writes `<installed mod folder>/Configs/UnitTestConfig.xml` (the project's own `Configs/UnitTestConfig.xml` if present, plus `<log><folder>.savedatafolder/<version></folder></log>`), and deletes any old `Test.log`. Results: `.savedatafolder/<version>/Test.log`, next to `Player.log`.
+- `gabs-launch.sh` deletes the old `Test.log` before launching, and `games_start` returns only once the game is running, so waiting on `Test.log` is safe: `until grep -q "Test runner finished. Result:" .savedatafolder/<version>/Test.log 2>/dev/null; do sleep 2; done` (backgrounded; it never matches if the run crashed, so check `games_status`/`Player.log` if it seems stuck). Roughly 1-2 minutes end to end for ~270 tests.
+- Read the result: last line `Test runner finished. Result: Passed|Failed`; counts via `grep -cP '^--\t\[Passed\]'` / `'^--\t\[Failed\]'` (tests) and `grep -c '^\[Failed\]'` (fixtures); failure detail follows each `[Failed]` line. With filters or `Test.Skip`, compare counts to the `[Test]` count in source.
+- Verified in a live run: `Test.log` location override via `<log><folder>` works; `warningsAllowed`/`errorsAllowed` entries are regexes matched against the logged text (partial match is enough); `-savedatafolder` does not affect `Test.log`.
+
+### Whitelisting expected log output
+
+Any warning/error logged while a fixture runs fails it. Tests that intentionally trigger logging (e.g. scribe round-trips of harness objects leaving `Not all loadIDs which were read were consumed`, or an error path under test) need a project-level `Configs/UnitTestConfig.xml` (do not put a `<log>` element in it; the launcher adds it):
+
+```xml
+<TestConfig>
+    <warningsAllowed><li>Not all loadIDs which were read were consumed</li></warningsAllowed>
+    <errorsAllowed><li>Tradeable lacks AnyThing</li></errorsAllowed>
+</TestConfig>
+```
+The list is global for the run, so keep regexes specific. This file lives at the repo root (`Configs/`) and is not shipped: `build.sh` and CI copy only specific folders.
+
+## Project setup used by RealisticOrbitalTrade
+
+- `Source/<Mod>.Tests/<Mod>.Tests.csproj`: default `OutputPath` (`../../<version>/Assemblies`, from Common.props), so `<Mod>.Tests.dll` sits next to the mod assembly, and for `RimWorldVersion == 1.6` only:
+  ```xml
+  <ProjectReference Include="$(ProjectDependenciesBasePath)\Third-Party\DevTools\DevTools\DevTools.csproj"
+      AdditionalProperties="OutDir=$(MSBuildThisFileDirectory)..\..\1.6\Assemblies\">
+      <CopyLocal>False</CopyLocal>
+      <Private>false</Private>
+  </ProjectReference>
+  ```
+  `AdditionalProperties` overrides DevTools' own `OutDir` (`..\..\1.6\Assemblies\` relative to the DevTools clone) so `DevTools.dll` is built into the mod's `1.6/Assemblies`. `ProjectDependenciesBasePath` defaults to `..\..\..` (the `RimWorld/` folder), so DevTools is expected at `RimWorld/Third-Party/DevTools`. For other versions, `<Compile Remove="**/*.cs" />` makes the test assembly empty.
+- No `LoadFolders.xml` entry and no `IfModActive`: the assemblies are in the always-loaded `1.6/Assemblies`, which is gitignored. The `.sln` omits `Release|Any CPU.Build.0` for the test project, so Release/CI builds neither the test assembly nor DevTools, and neither ships. A Release restore of the `.sln` succeeds without a DevTools checkout, so CI needs no DevTools step.
+- Test classes: `[TestFixture(TestType.MainMenu)] internal sealed class X` (`sealed` avoids CA1852). Prefer `.Count` over `.Count()` on lists (CA1829).
+- Tests for an integration project (e.g. `<Mod>.SocialEXPFromTrade.Tests`): same reference, but the test assembly keeps its `Integrations/<X>/<version>/Assemblies` output so it loads only when that mod is active; DevTools.dll still lands in `1.6/Assemblies`.
+
+## Launching tests
+
+- **In-game UI**: enable dev mode, open the debug-windows row; the "DevTools" icon (`TexButton.OpenStatsReport`) opens a mod/tool menu, then "Test Explorer". The window (`onlyDrawInDevMode`) has Run All, and a dropdown: Run Failed / Not Run / Passed Tests, Run Until Failure, Clear All Test Results; right-click selection -> Run Selected; "Open Log" opens `Test.log`. Runs work from the main menu or in-game (the runner replaces the current game with generated ones and returns to the main menu at the end).
+- **Command line** (`Testing/CommandRunner.cs`, parsed from `Environment.GetCommandLineArgs()` at startup):
+
+| Arg | Meaning |
+|---|---|
+| `--pid <packageId>` | **Required.** Must equal the target mod's `PackageIdPlayerFacing` (case-insensitive), else nothing runs. Checked per running mod; the first match wins |
+| `--test` / `-t` | Run unit tests (all fixtures of that mod) |
+| `--smoke-test` / `-s` | Run smoke tests |
+| `--test-plan <name>` / `-p <name>` | Run a test plan (`<mod>/TestPlans/*.xml`, spawns a child game process) |
+| `--filter <expr>` / `--where <expr>` / `-f <expr>` | Filter (below) |
+| `--exit` / `-e` | Quit with exit code 0/1 at the end |
+| `-batchmode` | Sets headless + exit, enables text-init compat. The source comments say headless does not currently function with RimWorld; use `-nographics` only if verified |
+
+Note: `Application.Quit` is only called by `--exit`; `--test` alone runs everything and leaves the Test Explorer open. The `--config` argument was removed (commit `d1df300`).
+
+- **Filter expressions**: `key op value [&& key op value ...]` (also `||`; evaluated left to right, no precedence, parentheses unsupported). Keys: `category`, `method`, `class`, `namespace`, `type` (`MainMenu`/`Playing`/`PostGameExit`), `status` (`Failed`, `NotRun`, ...), or any metadata key. Ops: `==`, `!=`, `=~` (contains), `!~`. Values are single tokens (`[\w\d_.\-]+`); quoted values keep their quotes in the token, so avoid quotes. Examples: `--filter "class == WithCountTests"`, `--filter "namespace =~ MyMod.Tests && type == MainMenu"`.
+
+- **Under GABS**: add the args to `GABS_LAUNCH_ARGS` in the project's `.vscode/build_config.sh` (forwarded by `rimworld-utils/gabs-launch.sh` to the game), e.g. `GABS_LAUNCH_ARGS=(--pid ilyvion.RealisticOrbitalTrade --test --exit)`. Then wait as in "Recommended grep-able approach" (with `Test.log` instead of `Player.log`), or use a custom `ILogWriter` to emit markers into `Player.log`. Prefer setting `<log><folder>` to a directory the Flatpak sandbox can write (the launcher grants `--filesystem=$PROJECT_DIR`). The test mod and DevTools must be enabled in `ModsConfig.xml` (host mod carries DevTools.dll, so no separate mod). Because `--exit` quits the game, do not use `--exit` when the agent needs to keep driving the live game.
+
+## Gotchas
+
+- **Static fixture classes are skipped silently** and abstract classes too; a fixture needs one public instance constructor.
+- **Logged warnings/errors fail tests** (default `failOnWarnings`/`failOnErrors` true; any `Log.Warning`/`Log.Error`/exception on any thread while the fixture/test runs, including from OneTimeSetUp and map generation). RimTest Redux captured them. For code under test that logs intentionally, add regexes to `warningsAllowed`/`errorsAllowed` in the config, or set `failOnWarnings`/`failOnErrors` false.
+- `Expect` failures do not stop the test; keep guarding null-derefs yourself (`Expect.IsNotNull(x); if (x == null) return;`). `Test.Skip`/`Cancel` also do not stop the test.
+- Exceptions thrown by test methods are caught and recorded as failures with the unwrapped inner exception; exceptions in fixture construction or `TestType` transitions are not caught locally and can kill the run without an end line.
+- Parameter limits: at most one parameterised argument per test method/constructor; parameters without a source attribute log an error and the method is not registered (except `[TestCase]`).
+- `[SetUp]`/`[TearDown]` must return `void`; setups run before every test on the shared fixture instance (fixture fields persist across tests of one run; re-run to get a new instance).
+- Ordering: fixtures grouped by `TestType`, then `[ExecutionPriority]`, otherwise dictionary insertion order (assembly type order); tests likewise. With filters, fixtures are ordered by `type.Assembly` first (`ExpressionTree.GetFilteredTests` orders by an `Assembly` key, which is not `IComparable`); running a filter that matches fixtures from multiple assemblies or many fixtures might throw _(unverified, from code reading; if `--filter` fails with an `IComparable` error, run per class)_.
+- Main-thread only. The whole run is one Unity coroutine; long synchronous tests freeze the game (`TestFixtureManager` summary). Map generation for `Playing` fixtures (150x150) happens on every fixture that customises game settings; group tests to minimise regenerations.
+- Tests run in a live game: static state, Harmony patches, defs and `Rand` persist. `Rand` is seeded deterministically per run (`RandBlockPersistent`). Use `ScopedMethodHook` for temporary Harmony patches (`Harmony.Patch`/`Unpatch` on dispose), `ScopedReferenceRollback`/`ScopedValueRollback` for temporary field values, `MockGameTicks`/`MockAbsTicks` for tick counters. `TickObserver<T>` and `TickIntervalObserver<T>` install a permanent Harmony postfix per entity type in their static constructor.
+- `StackTraceCacheDisabler` (used by the runner) reflects on `HarmonyMod.Settings.noStacktraceCaching`; requires the Harmony mod to be loaded.
+- DevTools compiles assertions via `UnityEngine.Assertions` internally; `Assert.raiseExceptions` behaviour in the player means non-throwing `Assert` calls in tests can only surface as logged `Assert` errors (which then fail the test via the log watcher).
+- `Test.log` is not `Player.log`; a RimTest-style `TESTING END` wait will hang forever unless a custom writer emits it.
+- Two DevTools runs at once (multi-instance) contend for `Test.log` via named mutexes; the non-owner appends.
+- `--pid` must match; forgetting it produces no error, the game simply starts normally.
+- Dev-mode UI entry only appears when dev mode is on; command-line runs need nothing.
+- `TestPlan` jobs spawn a child game process with `--pid <host> -e` plus `commandLineArgs`, and rewrite `ModsConfig.xml` (restored at end) — avoid in agent sessions.
+
+## Helper types
+
+All public unless noted.
+
+| Type | Signature / use |
+|---|---|
+| `Test` (static) | `Test.Current`, `Fail(string, string=null)`, `Fail(Exception)`, `Skip(string=null)`, `Cancel(string=null)`, `IEnumerator Suspend(float secondsTimeOut, string message=null)`, `GetGroups(ITestManager)`, `ResetAll(ITestManager)` |
+| `TestRunner` | `new TestRunner(ITestManager[, TestFilter | ExpressionTree])`, `Run()`, `AddStopCondition(StopOnTest)`, `AddPreTestAction/AddPostTestAction(TestAction)`, `AddTestActions(ITestActions)`, `SignalToStop()`, `static Active`, `static Current`, `static event Action<bool> OnTestRunnerStateChange` |
+| `TestFixtureManager` | `Config`, `RunAll()`, `OpenMenu()`; extensions in `Ext_TestManagers`: `OpenLogFile()`, `GetRunnerWith(filter | ExpressionTree | Expression, Comparison, string)`, `LoadConfig<T>(mod)` |
+| `WaitTicks(int ticks)` | `CustomYieldInstruction` over `TicksGame` |
+| `WaitUntilTimeout(Func<bool> predicate, int maxTicksToWait)` | fails the test with "Timed out" |
+| `WaitJob(Pawn, JobDef, int timeoutTicks = 2500, WaitJobType = StartsAndFinishesJob)`; `pawn.WaitJob(...)` extension | waits for a job |
+| `MapUtils.KillEverything(Map)` | destroys all pawns on a map |
+| `ScopeEntity(Thing)`, `ScopeWorldObject(WorldObject)`, `ScopeWindow(Window)` | `using` structs that destroy/close on dispose |
+| `MockGameTicks(int)` / `MockAbsTicks(int)` | temporary `TicksGame` / `gameStartAbsTick` |
+| `RandBlockPersistent(uint seed)` | seed that survives frames |
+| `ScopedMethodHook(MethodInfo original, HarmonyMethod prefix=null, postfix=null, finalizer=null)` | temporary Harmony patch |
+| `ScopedReferenceRollback<T, F>(T instance, string fieldName[, F newValue])` | temporary field override (`T : class`) |
+| `ScopedValueRollback<T>(ref T)` (`T : unmanaged`, unsafe) | restores value on dispose |
+| `TickObserver<T>(T entity)`, `TickIntervalObserver<T>(T entity)` (`T : Entity`) | `.TickCount` of `Tick` / `TickInterval` calls |
+| `GenStepWarningDisabler` | suppresses `GenStep_Scatterer` warnings during map generation |
+| `StopOnDispose(Stopwatch)` | stopwatch scope |
+| `MetaDataContainer` (`Get<T>(key)`), `ITestCase`, `ITestFixture`, `ITestFunction`, `ITestGroup`, `ITestManager`, `ITestConfig`, `ITestActions` | extension interfaces |
+| `Expression`, `ExpressionTree`, `Expression.Comparison` | programmatic filters |
+| `ILogWriter`, `ITestReport`, `Logger`, `Logger.Config`, `DevLog` (`Write`, `WriteLine`, `WriteVerbose`, `Flush`) | logging/reporting; `DevLog.Write` inside a running test appends to the test log |
+
+## Source map (DevTools repo)
+
+- Discovery/entry: `DevTools/DevHarmony.cs`, `DevTools/Testing/Test/TestFixtureManager.cs`, `DevTools/Testing/TestExtensions.cs`
+- Run loop: `DevTools/Testing/TestRunner.cs`, `DevTools/Testing/Test.cs`
+- Assertions: `DevTools/Testing/Expect.cs`, `DevTools/Testing/MessageBuilder.cs`
+- Logging/reports: `DevTools/DevLog.cs`, `DevTools/Testing/Logging/*.cs`, `DevTools/Testing/LogWatcher.cs`
+- CLI: `DevTools/Testing/CommandRunner.cs`
+- Config: `DevTools/Testing/ITestConfig.cs`, `DevTools/Testing/TestConfig.cs`, `DevTools/Testing/Ext_TestManagers.cs`
+- Filters: `DevTools/Testing/Test/Expressions/*.cs`
+- UI: `DevTools/Testing/Test/TestExplorer/*.cs`

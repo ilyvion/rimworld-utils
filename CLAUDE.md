@@ -59,15 +59,22 @@ For inspecting assemblies from older versions of Rimworld, there's also these di
 
 The mods tend to use Rimworld's translation system so texts aren't hard coded in any given language. When multiple languages are present in a project (which is rare, but it happens), when adding any new text, it must be added in every language present, not just for English.
 
+## Which test framework a project uses
+
+Projects are migrating from RimTest Redux to DevTools (SmashPhil). Tell them apart by the `<ModName>.Tests` project's references: `RimTestRedux.csproj` (`using RimTestRedux;`, `[TestSuite]`) means **RimTest Redux**; `DevTools.csproj` (`using DevTools.Testing;`, `[TestFixture]`) means **DevTools**. Every test-related instruction below has a branch for each; follow the one matching the project.
+
+- [DevTools reference](devtools.md) — DevTools features, test-writing API, RimTest Redux → DevTools translation table, result retrieval, gotchas. Read it before writing, converting or running DevTools tests.
+- To convert a project from RimTest Redux to DevTools, use the `rimtest-to-devtools` skill.
+
 ## Launching RimWorld under GABS to run the test suite
 
-- [Launching RimWorld under GABS to run the test suite](gabs.md) — Instructions for launching RimWorld under GABS to run the mod's unit tests. For full AI-driven game sessions (screenshots, mod inspection, UI investigation, debug-action testing), use the `run` skill instead.
+- [Launching RimWorld under GABS to run the test suite](gabs.md) — Instructions for launching RimWorld under GABS to run the mod's unit tests (RimTest Redux and DevTools procedures). For full AI-driven game sessions (screenshots, mod inspection, UI investigation, debug-action testing), use the `run` skill instead.
 
 ## Writing tests
 
 Every code change must be accompanied by one or more tests insofar as it is possible to test the code. If the code being modified has no existing test coverage, write a passing test that captures the current behavior _before_ making any changes — this acts as a regression guard. Then make the change and add or update tests to cover the new behavior.
 
-- [Writing tests](tests.md) — Instructions for writing tests; for actually running them, see the GABS section above
+- [Writing tests](tests.md) — Instructions for writing tests (RimTest Redux and DevTools); for actually running them, see the GABS section above
 
 ## Verifying a build succeeds
 

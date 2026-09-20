@@ -29,6 +29,31 @@
 # - RIMWORLD_EXECUTABLE: Path to the RimWorld executable inside the Flatpak
 #   Steam install (default: standard Flatpak Steam location)
 # - GABS_LAUNCH_ARGS: Array of extra RimWorld command-line arguments
+# - MOD_NAME / TARGET: Where build.sh installs the mod (only needed for DevTools test runs)
+#
+# Arguments GABS passes to this script (its `args`, profile args and launch inputs) are forwarded
+# to RimWorld. For DevTools test runs (see devtools.md), declare launch inputs in the GABS game
+# config, e.g.:
+#
+#   "launchInputs": {
+#     "runTests": {
+#       "description": "Run the DevTools test suite, then quit the game",
+#       "type": "boolean",
+#       "args": ["--test", "--exit"]
+#     },
+#     "testFilter": {
+#       "description": "DevTools filter expression, e.g. class == WithCountTests",
+#       "type": "string",
+#       "pattern": "[A-Za-z0-9_.=!~&| -]+",
+#       "args": ["--filter", "${value}"]
+#     }
+#   }
+#
+# and start the game via the MCP `games_start` tool with `launchInputs: {"runTests": true}`. When `--test` is
+# among the forwarded arguments, this script adds `--pid <packageId from About/About.xml>` and
+# writes Configs/UnitTestConfig.xml into the installed mod folder (the project's own
+# Configs/UnitTestConfig.xml, if any, plus a <log> element) so DevTools writes its Test.log to
+# .savedatafolder/<version>/Test.log (next to Player.log).
 #
 # Runs .vscode/build.sh $RIMWORLD_VERSION before launching, so the mod
 # folder the game loads from is always up to date for the version being
@@ -39,8 +64,10 @@ set -euo pipefail
 PROJECT_DIR="$(pwd)"
 CONFIG_FILE="$PROJECT_DIR/.vscode/build_config.sh"
 
-ALLOWED_VARS=(RIMWORLD_VERSION RIMWORLD_EXECUTABLE GABS_LAUNCH_ARGS)
+ALLOWED_VARS=(MOD_NAME TARGET RIMWORLD_VERSION RIMWORLD_EXECUTABLE GABS_LAUNCH_ARGS)
 
+MOD_NAME=""
+TARGET=""
 RIMWORLD_VERSION=""
 RIMWORLD_EXECUTABLE=""
 GABS_LAUNCH_ARGS=()
@@ -68,6 +95,34 @@ mkdir -p "$SAVE_DIR"
 
 "$PROJECT_DIR/.vscode/build.sh" "$RIMWORLD_VERSION"
 
+FORWARDED_ARGS=("$@")
+RUNNING_TESTS=false
+HAS_PID=false
+for arg in "${FORWARDED_ARGS[@]}"; do
+    [[ "$arg" == "--test" || "$arg" == "-t" ]] && RUNNING_TESTS=true
+    [[ "$arg" == "--pid" ]] && HAS_PID=true
+done
+
+if [[ "$RUNNING_TESTS" == true ]]; then
+    if [[ "$HAS_PID" == false ]]; then
+        PACKAGE_ID="$(sed -n 's:.*<packageId>\(.*\)</packageId>.*:\1:p' "$PROJECT_DIR/About/About.xml" | head -1)"
+        FORWARDED_ARGS=(--pid "$PACKAGE_ID" "${FORWARDED_ARGS[@]}")
+    fi
+    TARGET="${TARGET:-$HOME/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/RimWorld/Mods/$MOD_NAME}"
+    # build.sh empties the mod folder, so the config is written after it. Test.log is truncated
+    # by DevTools at the start of each run; remove it too so a stale one can't be read.
+    mkdir -p "$TARGET/Configs"
+    # The project's own Configs/UnitTestConfig.xml (optional; DevTools settings such as
+    # warningsAllowed/errorsAllowed, without a <log> element) is merged with the log folder.
+    if [[ -f "$PROJECT_DIR/Configs/UnitTestConfig.xml" ]]; then
+        cp "$PROJECT_DIR/Configs/UnitTestConfig.xml" "$TARGET/Configs/UnitTestConfig.xml"
+    else
+        printf '<TestConfig>\n</TestConfig>\n' > "$TARGET/Configs/UnitTestConfig.xml"
+    fi
+    sed -i "s#</TestConfig>#<log><folder>$SAVE_DIR</folder></log></TestConfig>#" "$TARGET/Configs/UnitTestConfig.xml"
+    rm -f "$SAVE_DIR/Test.log"
+fi
+
 exec flatpak-spawn --host flatpak run \
   --filesystem="$PROJECT_DIR" \
   --env=HARMONY_LOG_FILE="$SAVE_DIR/Harmony.log" \
@@ -78,4 +133,5 @@ exec flatpak-spawn --host flatpak run \
   com.valvesoftware.Steam \
   -logfile "$SAVE_DIR/Player.log" \
   -savedatafolder="$SAVE_DIR" \
-  "${GABS_LAUNCH_ARGS[@]}"
+  "${GABS_LAUNCH_ARGS[@]}" \
+  "${FORWARDED_ARGS[@]}"
