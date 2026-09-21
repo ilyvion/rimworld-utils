@@ -28,7 +28,9 @@ The raw arguments are: $ARGUMENTS
 
 **All modes:** Do not launch the game to do any verification with GABS except to run unit tests as per CLAUDE.md. If any changes need in-game verification, ask the user to do it and report back to you.
 
-When done doing your edits, run `csharpier format .`, then describe the changes made in CHANGELOG.md as a player would understand the changes to be helpful, following the "Writing a changelog entry" rules below. If the changes makes no discernible difference to the player, skip updating the change log. Run the `commit-message` skill. Do not actually do the commit, let the user inspect and review the result.
+**A clean build is mandatory before you are done.** After the edits (and again after any fixes to build output), build the project for _every_ supported RimWorld version as described in CLAUDE.md's "Verifying a build succeeds" section, using a clean build (not an incremental one) so no warnings are hidden. Read the full output: every error _and_ every warning must be fixed, and you must rebuild until each version reports 0 warnings and 0 errors. Do not proceed to the changelog, marking the issue fixed, or the commit message while any build is failing or warning, and do not report the task as complete without having run these builds.
+
+When done doing your edits and the builds are clean, run `csharpier format .`, then describe the changes made in CHANGELOG.md as a player would understand the changes to be helpful, following the "Writing a changelog entry" rules below. If the changes makes no discernible difference to the player, skip updating the change log. Run the `commit-message` skill. Do not actually do the commit, let the user inspect and review the result.
 
 ### Writing a changelog entry
 
@@ -64,7 +66,7 @@ Use a todo list to track each step listed above; here's an example from a prior 
 - Fix BUG-1 (Scribe_Either.LookValue missing write-backs)
 - Fix BUG-2 (BodyPart null guard)
 - Fix BUG-27 (LeftAnd/RightAnd docs)
-- Build project for all supported versions (1.3, 1.4, 1.5, 1.6)
+- Clean-build project for all supported versions (1.3, 1.4, 1.5, 1.6); fix all errors AND warnings and rebuild until 0 warnings, 0 errors on every version
 - Run the test suite via GABS (RimTest Redux or DevTools, whichever the project uses; see `gabs.md`). With DevTools, run only filtered subsets (`testFilter`) while iterating, and do one unfiltered run of all tests as the final regression run before considering the implementation done
 - Run csharpier format .
 - Update CHANGELOG.md

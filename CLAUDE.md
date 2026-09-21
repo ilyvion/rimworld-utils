@@ -78,8 +78,10 @@ Every code change must be accompanied by one or more tests insofar as it is poss
 
 ## Verifying a build succeeds
 
-- "The build succeeds" means 0 warnings and 0 errors. Don't report success and leave warnings for the user to clean up — fix them as part of the change that introduced them.
-- A project supports every RimWorld version listed in its `About/About.xml` `<supportedVersions>` (matching `LoadFolders.xml`'s `<vX.Y>` entries). Build with `.vscode/build.sh <version>` (see above) for _each_ supported version, not just the default/latest — a change can compile cleanly against the latest version's API while breaking an older one.
+- Every code change must be verified by an actual build before the task is considered done. Skipping the build, or reasoning that the code "should compile", is not acceptable.
+- "The build succeeds" means 0 warnings and 0 errors. Read the build output for warnings, not just errors. Don't report success and leave warnings for the user to clean up — fix them as part of the change that introduced them, then rebuild until the output is clean.
+- Incremental builds can hide warnings from files that weren't recompiled, so the final verification build must be a clean build (e.g. `dotnet build --no-incremental`, or `dotnet clean` first) rather than an incremental one.
+- A project supports every RimWorld version listed in its `About/About.xml` `<supportedVersions>` (matching `LoadFolders.xml`'s `<vX.Y>` entries). Build with `.vscode/build.sh <version>` for _each_ supported version, not just the default/latest — a change can compile cleanly against the latest version's API while breaking an older one.
 
 ## CHANGELOG.md
 
