@@ -121,12 +121,14 @@ if [[ "$RUNNING_TESTS" == true ]]; then
     # The project's own Configs/$CONFIG_NAME.xml (optional; DevTools settings such as
     # warningsAllowed/errorsAllowed, without a <log> element) is merged with the log folder.
     # A test plan's child process runs unit tests, so UnitTestConfig is written alongside.
-    if [[ -f "$PROJECT_DIR/Configs/$CONFIG_NAME.xml" ]]; then
-        cp "$PROJECT_DIR/Configs/$CONFIG_NAME.xml" "$TARGET/Configs/$CONFIG_NAME.xml"
-    else
-        printf '<TestConfig>\n</TestConfig>\n' > "$TARGET/Configs/$CONFIG_NAME.xml"
-    fi
-    sed -i "s#</TestConfig>#<log><folder>$SAVE_DIR</folder></log></TestConfig>#" "$TARGET/Configs/$CONFIG_NAME.xml"
+    for name in "$CONFIG_NAME" UnitTestConfig; do
+        if [[ -f "$PROJECT_DIR/Configs/$name.xml" ]]; then
+            cp "$PROJECT_DIR/Configs/$name.xml" "$TARGET/Configs/$name.xml"
+        else
+            printf '<TestConfig>\n</TestConfig>\n' > "$TARGET/Configs/$name.xml"
+        fi
+        sed -i "s#</TestConfig>#<log><folder>$SAVE_DIR</folder></log></TestConfig>#" "$TARGET/Configs/$name.xml"
+    done
     rm -f "$SAVE_DIR/Test.log"
 
     # DevTools test plans can rewrite ModsConfig.xml and only restore it on a clean finish, and the
