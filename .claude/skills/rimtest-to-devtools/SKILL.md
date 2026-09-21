@@ -54,7 +54,7 @@ Simulate CI: temporarily delete built `DevTools.dll` and `<Mod>.Tests.*` from `1
 
 ## 6. Run the tests
 
-Follow `gabs.md` "Running the tests with DevTools": `games_start` with `launchInputs: {"runTests": true}`, background-wait with `until grep -q "Test runner finished. Result:" ".savedatafolder/1.6/Test.log"`, then count `[Passed]`/`[Failed]` lines. All baseline tests must pass and the passed count must equal the `[Test]` count from step 0. Investigate failures: a failure that is a logged warning/error is a whitelisting question (step 4), anything else is a real conversion mistake (commonly swapped operands: `AreEqual(expected, actual)`).
+Follow `gabs.md` "Running the tests with DevTools" (this is a full, unfiltered run, since the passed count must match the baseline; use `testFilter` for any intermediate debugging runs): `games_start` with `launchInputs: {"runTests": true}`, background-wait with `until grep -q "Test runner finished. Result:" ".savedatafolder/1.6/Test.log"`, then count `[Passed]`/`[Failed]` lines. All baseline tests must pass and the passed count must equal the `[Test]` count from step 0. Investigate failures: a failure that is a logged warning/error is a whitelisting question (step 4), anything else is a real conversion mistake (commonly swapped operands: `AreEqual(expected, actual)`).
 
 ## 7. Finish
 

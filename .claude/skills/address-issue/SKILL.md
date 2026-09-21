@@ -65,7 +65,7 @@ Use a todo list to track each step listed above; here's an example from a prior 
 - Fix BUG-2 (BodyPart null guard)
 - Fix BUG-27 (LeftAnd/RightAnd docs)
 - Build project for all supported versions (1.3, 1.4, 1.5, 1.6)
-- Run the test suite via GABS (RimTest Redux or DevTools, whichever the project uses; see `gabs.md`)
+- Run the test suite via GABS (RimTest Redux or DevTools, whichever the project uses; see `gabs.md`). With DevTools, run only filtered subsets (`testFilter`) while iterating, and do one unfiltered run of all tests as the final regression run before considering the implementation done
 - Run csharpier format .
 - Update CHANGELOG.md
 - Mark bugs fixed in BUG-REPORT.md

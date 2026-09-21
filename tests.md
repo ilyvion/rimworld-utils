@@ -16,3 +16,7 @@ To unit test logic that's entangled with game/presentation logic:
 3. Before writing assertions against an actual RimWorld/Verse type's constructor or API shape, verify it rather than guessing — e.g. inspect `~/.nuget/packages/krafs.rimworld.ref/<version>/ref/net472/Assembly-CSharp.dll` via reflection metadata, or grep the mod/siblings for existing working usages.
 
 Prefer test names and bodies that state the behavior being guarded (e.g. `FailedSwapRestoresOriginalContents`), and where a test exists specifically because of a past bug, say so in a comment so a future change doesn't silently regress it.
+
+## Running DevTools tests: filter first
+
+With DevTools, always run tests filtered (`testFilter`, see `gabs.md`) while writing or fixing them, to save time. Run the full unfiltered suite only once, as the final regression run before considering an implementation done.

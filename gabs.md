@@ -37,6 +37,8 @@ The launcher is `gabs-launch.sh`, which runs `.vscode/build.sh <version>` itself
 
 ## Running the tests with DevTools
 
+**Filter runs.** While implementing, always run DevTools tests filtered (`testFilter`, e.g. `class == FooTests` or `method == Bar`) to save time. Run the full unfiltered suite only once, as the final regression run before considering an implementation done.
+
 Full detail (config, output format, gotchas) is in [devtools.md](devtools.md) ("Verified workflow"). Summary:
 
 1. **Prerequisites.** The mod under test must be enabled in the instance's `ModsConfig.xml`; DevTools is not a mod and needs no entry (`DevTools.dll` loads from the mod's own `1.6/Assemblies`). The GABS game config must declare the `runTests` (and optionally `testFilter`) launch inputs, and GABS must be >= 1.1.0 (see devtools.md for the snippet). Only RimWorld 1.6 supports DevTools.
