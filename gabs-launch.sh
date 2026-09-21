@@ -51,9 +51,10 @@
 #
 # and start the game via the MCP `games_start` tool with `launchInputs: {"runTests": true}`. When `--test` is
 # among the forwarded arguments, this script adds `--pid <packageId from About/About.xml>` and
-# writes Configs/UnitTestConfig.xml into the installed mod folder (the project's own
-# Configs/UnitTestConfig.xml, if any, plus a <log> element) so DevTools writes its Test.log to
-# .savedatafolder/<version>/Test.log (next to Player.log).
+# writes Configs/$CONFIG_NAME.xml into the installed mod folder (the project's own
+# Configs/$CONFIG_NAME.xml, if any, plus a <log> element) so DevTools writes its Test.log to
+# .savedatafolder/<version>/Test.log (next to Player.log). It also keeps timestamped backups of
+# .savedatafolder/<version>/Config/ModsConfig.xml (ModsConfig.xml.bak-*, newest 5) before test runs.
 #
 # Runs .vscode/build.sh $RIMWORLD_VERSION before launching, so the mod
 # folder the game loads from is always up to date for the version being
@@ -97,9 +98,14 @@ mkdir -p "$SAVE_DIR"
 
 FORWARDED_ARGS=("$@")
 RUNNING_TESTS=false
+CONFIG_NAME=UnitTestConfig
 HAS_PID=false
 for arg in "${FORWARDED_ARGS[@]}"; do
-    [[ "$arg" == "--test" || "$arg" == "-t" ]] && RUNNING_TESTS=true
+    case "$arg" in
+        --test|-t) RUNNING_TESTS=true; CONFIG_NAME=UnitTestConfig ;;
+        --test-plan|-p) RUNNING_TESTS=true; CONFIG_NAME=TestPlanConfig ;;
+        --smoke-test|-s) RUNNING_TESTS=true; CONFIG_NAME=SmokeTestConfig ;;
+    esac
     [[ "$arg" == "--pid" ]] && HAS_PID=true
 done
 
@@ -112,15 +118,29 @@ if [[ "$RUNNING_TESTS" == true ]]; then
     # build.sh empties the mod folder, so the config is written after it. Test.log is truncated
     # by DevTools at the start of each run; remove it too so a stale one can't be read.
     mkdir -p "$TARGET/Configs"
-    # The project's own Configs/UnitTestConfig.xml (optional; DevTools settings such as
+    # The project's own Configs/$CONFIG_NAME.xml (optional; DevTools settings such as
     # warningsAllowed/errorsAllowed, without a <log> element) is merged with the log folder.
-    if [[ -f "$PROJECT_DIR/Configs/UnitTestConfig.xml" ]]; then
-        cp "$PROJECT_DIR/Configs/UnitTestConfig.xml" "$TARGET/Configs/UnitTestConfig.xml"
+    # A test plan's child process runs unit tests, so UnitTestConfig is written alongside.
+    if [[ -f "$PROJECT_DIR/Configs/$CONFIG_NAME.xml" ]]; then
+        cp "$PROJECT_DIR/Configs/$CONFIG_NAME.xml" "$TARGET/Configs/$CONFIG_NAME.xml"
     else
-        printf '<TestConfig>\n</TestConfig>\n' > "$TARGET/Configs/UnitTestConfig.xml"
+        printf '<TestConfig>\n</TestConfig>\n' > "$TARGET/Configs/$CONFIG_NAME.xml"
     fi
-    sed -i "s#</TestConfig>#<log><folder>$SAVE_DIR</folder></log></TestConfig>#" "$TARGET/Configs/UnitTestConfig.xml"
+    sed -i "s#</TestConfig>#<log><folder>$SAVE_DIR</folder></log></TestConfig>#" "$TARGET/Configs/$CONFIG_NAME.xml"
     rm -f "$SAVE_DIR/Test.log"
+
+    # DevTools test plans can rewrite ModsConfig.xml and only restore it on a clean finish, and the
+    # game is exec'd below so nothing here can restore it afterwards. Keep timestamped copies
+    # (only when the content changed, newest 5) so a good mod list survives an interrupted run;
+    # restore by copying the wanted ModsConfig.xml.bak-* over ModsConfig.xml.
+    MODS_CONFIG="$SAVE_DIR/Config/ModsConfig.xml"
+    if [[ -f "$MODS_CONFIG" ]]; then
+        LATEST_BACKUP="$(ls -1t "$MODS_CONFIG".bak-* 2>/dev/null | head -1 || true)"
+        if [[ -z "$LATEST_BACKUP" ]] || ! cmp -s "$MODS_CONFIG" "$LATEST_BACKUP"; then
+            cp "$MODS_CONFIG" "$MODS_CONFIG.bak-$(date +%Y%m%d-%H%M%S)"
+        fi
+        ls -1t "$MODS_CONFIG".bak-* 2>/dev/null | tail -n +6 | xargs -r rm --
+    fi
 fi
 
 exec flatpak-spawn --host flatpak run \
