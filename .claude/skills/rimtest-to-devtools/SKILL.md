@@ -14,7 +14,7 @@ Ask the user (AskUserQuestion) whenever something is unclear; don't guess. Do no
 ## 0. Preconditions
 
 - The project has one or more `<Mod>.Tests` projects referencing `RimTestRedux.csproj` (there can be several, e.g. `<Mod>.<Integration>.Tests`; convert all so no RimTestRedux reference remains).
-- DevTools is cloned at `../Third-Party/DevTools` (relative to the project root; remote `https://github.com/SmashPhil/DevTools.git`, branch `develop`). DevTools supports RimWorld 1.6 only and needs the .NET 10 SDK. If the clone is missing, ask the user where it is; never search the filesystem.
+- DevTools is cloned at `../Third-Party/DevTools` (relative to the project root; remote `https://github.com/ilyvion/SmashPhil-DevTools.git`, branch `develop`). DevTools supports RimWorld 1.6 only and needs the .NET 10 SDK. If the clone is missing, ask the user where it is; never search the filesystem.
 - GABS >= 1.1.0 is used through its MCP tools only (never the `gabs` CLI).
 - Record the baseline: `grep -rc "\[Test\]"` over the test sources, summed, so you can compare it with the DevTools run's passed count at the end. If practical, run the RimTest Redux suite first (see `gabs.md`) to confirm the tests are green before changing anything.
 
@@ -37,7 +37,9 @@ For each test csproj, following the reference commit:
 4. Fix nullable warnings the rewrite exposes (`plan.Count` on a nullable `plan` needs `plan!.Count`).
 5. `csharpier format Source/<Mod>.Tests ...`.
 
-Tests needing a live map or game (rare in RimTest suites, which ran before any game loaded) would need `TestType.Playing`; if a test's comments say it can't run without a map, keep `MainMenu`.
+Tests needing a live map or game (rare in RimTest suites, which ran before any game loaded) would need `TestType.Playing`; if a test's comments say it can't run without a map, keep `MainMenu`. Converting to `Playing` is new test logic, outside this skill's scope: ask the user, and if they want it, follow devtools.md's "End-to-end (`Playing`) tests" section (shared state must be restored, ticks driven by the test, real code paths driven).
+
+Two behaviours differ from RimTest Redux and can surface after conversion: any logged warning/error fails a test (step 4), and `Expect.*` doesn't throw, so add `if (x == null) return;` after an `Expect.IsNotNull(x)` that later code dereferences.
 
 ## 3. Build: 0 warnings, 0 errors, every supported version
 
