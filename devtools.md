@@ -74,6 +74,7 @@ internal class WithCountTests           // NOT static
 | `[Disabled]` | class/method | Excluded entirely |
 | `[ExecutionPriority(int or Priority)]` | class/method | Ordering (higher first) |
 | `[TestCategory("a", "b")]` | class/method | Filterable metadata (`category`) |
+| `[WarningsAllowed(params string[] regexes)]` / `[ErrorsAllowed(params string[] regexes)]` | class/method | Logged warnings/errors matching a regex do not fail this fixture/test only |
 | `[TestDescription("...")]` | class/method | Tooltip in Test Explorer |
 | `[LoadSave("file")]` | class | Load this save instead of generating a game |
 | `[LoadIfModsActive(ids...)]`, `[LoadIfAnyModsActive(ids...)]` | class/method | Skip registration unless mods are active (`ModLister.AllModsActiveNoSuffix`) |
@@ -88,7 +89,7 @@ Fixture-level game settings are declared by implementing interfaces on the fixtu
 1. `LongEventHandler.ExecuteWhenFinished` then a Unity coroutine (`CoroutineObject`) on the main thread; `Application.runInBackground = true` for the duration; one frame skipped.
 2. Seed: `Rand` is fixed (`randSeed` from config or random; `Starting tests with seed: N` is logged).
 3. Per fixture: create instance -> scene change if needed -> `TestType.Playing`: camera jump to map -> pre-test actions (config) -> `[OneTimeSetUp]` -> for each test: (`[SetUp]` -> test -> `[TearDown]`) with retries -> `[OneTimeTearDown]` -> post-test actions -> log fixture results.
-4. Each fixture and each test is wrapped in a `LogWatcher`: **any `Log.Warning`/`Log.Error`/exception logged during it fails the test** unless whitelisted (config `failOnWarnings`/`failOnErrors`, default both `true`; `warningsAllowed`/`errorsAllowed` regex lists).
+4. Each fixture and each test is wrapped in a `LogWatcher`: **any `Log.Warning`/`Log.Error`/exception logged during it fails the test** unless whitelisted (`[WarningsAllowed]`/`[ErrorsAllowed]` attributes, or the config's `failOnWarnings`/`failOnErrors`, default both `true`, and global `warningsAllowed`/`errorsAllowed` regex lists).
 5. At the end the game returns to the main menu, then `OnTestRunnerEnd`: optional report, and either `Application.Quit` (if `--exit`) or opens the Test Explorer.
 
 ### Coroutine (multi-tick) tests
@@ -335,15 +336,16 @@ Start with the GABS MCP tool: `games_start {"gameId": "<game-id>", "launchInputs
 
 ### Whitelisting expected log output
 
-Any warning/error logged while a fixture runs fails it. Tests that intentionally trigger logging (e.g. scribe round-trips of harness objects leaving `Not all loadIDs which were read were consumed`, or an error path under test) need a project-level `Configs/UnitTestConfig.xml` (do not put a `<log>` element in it; the launcher adds it):
+Any warning/error logged while a fixture runs fails it. Tests that intentionally trigger logging (e.g. an error path under test) opt out per test with `[WarningsAllowed]`/`[ErrorsAllowed]` (namespace `DevTools.Testing`; arguments are regexes, a partial match is enough):
 
-```xml
-<TestConfig>
-    <warningsAllowed><li>Not all loadIDs which were read were consumed</li></warningsAllowed>
-    <errorsAllowed><li>Tradeable lacks AnyThing</li></errorsAllowed>
-</TestConfig>
+```csharp
+[Test]
+[ErrorsAllowed("Tradeable lacks AnyThing")]
+public static void ReturnsNullBoundsWhenTradeableHasNoThing() { ... }
 ```
-The list is global for the run, so keep regexes specific. This file lives at the repo root (`Configs/`) and is not shipped: `build.sh` and CI copy only specific folders.
+Put the attribute on the test method that logs, not the fixture, so other tests in the fixture still fail on unexpected output. Do not use the global `warningsAllowed`/`errorsAllowed` config lists for this.
+
+A hand-built scribe round-trip harness (`CustomStreamReaderScribeLoader`) must call `Scribe.loader.crossRefs.RegisterForCrossRefResolve(loadTarget)` after `loadTarget.ExposeData()`; otherwise `FinalizeLoading` logs `Not all loadIDs which were read were consumed` for every reference field. `FinalizeLoading` itself resolves cross references and runs post-load inits.
 
 ## Project setup used by RealisticOrbitalTrade
 
@@ -386,7 +388,7 @@ Note: `Application.Quit` is only called by `--exit`; `--test` alone runs everyth
 - **Static fixture classes are skipped silently** and abstract classes too; a fixture needs one public instance constructor.
 - **Debugging a failing run:** `Log.Message` output goes to `Player.log`, results to `.savedatafolder/<version>/Test.log`. Log state inside a tick loop only when it changes to see where a value diverges, and remove it before finishing. `Expect.*` doesn't throw, so one run can list several failures; `AreEqual(expected, actual)` prints `Expected <expected> == <actual>`.
 - **Iterating:** run only the fixture you're working on (`testFilter: "class == <Fixture>"`), rebuild before each relaunch (the game loads the built mod), and stop the running game first. The runner exits when done, so `games_start` can report exit code 1 for a failing run; read the result from `Test.log`.
-- **Logged warnings/errors fail tests** (default `failOnWarnings`/`failOnErrors` true; any `Log.Warning`/`Log.Error`/exception on any thread while the fixture/test runs, including from OneTimeSetUp and map generation). RimTest Redux captured them. For code under test that logs intentionally, add regexes to `warningsAllowed`/`errorsAllowed` in the config, or set `failOnWarnings`/`failOnErrors` false.
+- **Logged warnings/errors fail tests** (default `failOnWarnings`/`failOnErrors` true; any `Log.Warning`/`Log.Error`/exception on any thread while the fixture/test runs, including from OneTimeSetUp and map generation). RimTest Redux captured them. For code under test that logs intentionally, put `[WarningsAllowed]`/`[ErrorsAllowed]` on that test (see "Whitelisting expected log output").
 - `Expect` failures do not stop the test; keep guarding null-derefs yourself (`Expect.IsNotNull(x); if (x == null) return;`). `Test.Skip`/`Cancel` also do not stop the test.
 - Exceptions thrown by test methods are caught and recorded as failures with the unwrapped inner exception; exceptions in fixture construction or `TestType` transitions are not caught locally and can kill the run without an end line.
 - Parameter limits: at most one parameterised argument per test method/constructor; parameters without a source attribute log an error and the method is not registered (except `[TestCase]`).
