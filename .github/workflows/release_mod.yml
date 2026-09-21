@@ -136,7 +136,58 @@ jobs:
                   header="**Updated $(date +%Y-%m-%d)** (${VERSION})"
                   subheader="Release notes:"
 
-                  mapfile -t body_lines < <(echo "$CHANGELOG_CONTENT" | sed -E 's/^### (.*)$/**\1**/')
+                  # Discord doesn't support reference-style links ([text][label] plus a
+                  # separate "[label]: url" line), so those are converted to inline links.
+                  # It also embeds link previews unless the URL is wrapped: [text](<url>).
+                  discord_body=$(python3 - <<'PY'
+                  import os
+                  import re
+
+                  text = os.environ["CHANGELOG_CONTENT"]
+
+                  # Collect and remove reference definitions: [label]: url "optional title"
+                  definitions = {}
+                  definition_re = re.compile(
+                      r"""^ {0,3}\[([^\]]+)\]:[ \t]*<?(\S+?)>?(?:[ \t]+(?:"[^"]*"|'[^']*'|\([^)]*\)))?[ \t]*$\n?""",
+                      re.M,
+                  )
+
+
+                  def take_definition(m):
+                      definitions[m.group(1).lower()] = m.group(2)
+                      return ""
+
+
+                  text = definition_re.sub(take_definition, text).rstrip("\n")
+
+
+                  def inline(label, url):
+                      return f"[{label}](<{url}>)"
+
+
+                  def full_reference(m):
+                      label = m.group(2) or m.group(1)
+                      url = definitions.get(label.lower())
+                      return inline(m.group(1), url) if url else m.group(0)
+
+
+                  def shortcut_reference(m):
+                      url = definitions.get(m.group(1).lower())
+                      return inline(m.group(1), url) if url else m.group(0)
+
+
+                  # [text][label] and [text][]
+                  text = re.sub(r"\[([^\]]+)\]\[([^\]]*)\]", full_reference, text)
+                  # [label]
+                  text = re.sub(r"\[([^\]]+)\](?![\[(:])", shortcut_reference, text)
+                  # Inline links
+                  text = re.sub(r"\]\((https?:[^)>\s]+)\)", r"](<\1>)", text)
+                  text = re.sub(r"^### (.*)$", r"**\1**", text, flags=re.M)
+
+                  print(text)
+                  PY
+                  )
+                  mapfile -t body_lines <<< "$discord_body"
 
                   all_lines=("$header" "$subheader" "")
                   all_lines+=("${body_lines[@]}")
