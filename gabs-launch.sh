@@ -54,7 +54,8 @@
 # writes Configs/$CONFIG_NAME.xml into the installed mod folder (the project's own
 # Configs/$CONFIG_NAME.xml, if any, plus a <log> element) so DevTools writes its Test.log to
 # .savedatafolder/<version>/Test.log (next to Player.log). It also keeps timestamped backups of
-# .savedatafolder/<version>/Config/ModsConfig.xml (ModsConfig.xml.bak-*, newest 5) before test runs.
+# .savedatafolder/<version>/Config/ModsConfig.xml (ModsConfig.xml.bak-*, newest 5) before test
+# runs, and restores the latest one once the game exits, however it exits.
 #
 # Runs .vscode/build.sh $RIMWORLD_VERSION before launching, so the mod
 # folder the game loads from is always up to date for the version being
@@ -131,21 +132,43 @@ if [[ "$RUNNING_TESTS" == true ]]; then
     done
     rm -f "$SAVE_DIR/Test.log"
 
-    # DevTools test plans can rewrite ModsConfig.xml and only restore it on a clean finish, and the
-    # game is exec'd below so nothing here can restore it afterwards. Keep timestamped copies
-    # (only when the content changed, newest 5) so a good mod list survives an interrupted run;
-    # restore by copying the wanted ModsConfig.xml.bak-* over ModsConfig.xml.
+    # DevTools test plans can rewrite ModsConfig.xml. Keep timestamped copies (only when the
+    # content changed, newest 5) so a run's actual mod list stays available, and remember the
+    # latest one in RESTORE_BACKUP so restore_mods_config (below) can put it back once the game
+    # exits.
     MODS_CONFIG="$SAVE_DIR/Config/ModsConfig.xml"
+    RESTORE_BACKUP=""
     if [[ -f "$MODS_CONFIG" ]]; then
         LATEST_BACKUP="$(ls -1t "$MODS_CONFIG".bak-* 2>/dev/null | head -1 || true)"
         if [[ -z "$LATEST_BACKUP" ]] || ! cmp -s "$MODS_CONFIG" "$LATEST_BACKUP"; then
             cp "$MODS_CONFIG" "$MODS_CONFIG.bak-$(date +%Y%m%d-%H%M%S)"
         fi
         ls -1t "$MODS_CONFIG".bak-* 2>/dev/null | tail -n +6 | xargs -r rm --
+        RESTORE_BACKUP="$(ls -1t "$MODS_CONFIG".bak-* 2>/dev/null | head -1)"
     fi
 fi
 
-exec flatpak-spawn --host flatpak run \
+# Puts RESTORE_BACKUP (see above) back over ModsConfig.xml once the game has exited, so a
+# DevTools test run never leaves the mod list altered no matter how the game terminated. A no-op
+# outside test runs, or when no pre-run ModsConfig.xml existed to back up.
+restore_mods_config() {
+    [[ "$RUNNING_TESTS" == true && -n "$RESTORE_BACKUP" ]] && cp "$RESTORE_BACKUP" "$MODS_CONFIG"
+}
+
+# flatpak-spawn --host hands the game off to a host-side process tree that isn't a descendant of
+# this script (or of the flatpak-spawn client below), so a signal sent to either of those never
+# reaches the game. GABS tracks the flatpak-spawn client's PID, so `games_stop`/`games_kill` need
+# a trap here that reaches the real game process by another means: its -savedatafolder argument is
+# unique per project, so it also can't affect another project's or an unrelated RimWorld instance.
+stop_game() {
+    flatpak-spawn --host pkill -f -- "-savedatafolder=$SAVE_DIR" || true
+    wait "$GAME_PID" 2>/dev/null
+    restore_mods_config
+    exit 0
+}
+trap stop_game TERM INT
+
+flatpak-spawn --host flatpak run \
   --filesystem="$PROJECT_DIR" \
   --env=HARMONY_LOG_FILE="$SAVE_DIR/Harmony.log" \
   --env=GABP_SERVER_PORT="${GABP_SERVER_PORT:?GABP_SERVER_PORT not set; run this script through GABS}" \
@@ -156,4 +179,11 @@ exec flatpak-spawn --host flatpak run \
   -logfile "$SAVE_DIR/Player.log" \
   -savedatafolder="$SAVE_DIR" \
   "${GABS_LAUNCH_ARGS[@]}" \
-  "${FORWARDED_ARGS[@]}"
+      "${FORWARDED_ARGS[@]}" &
+GAME_PID=$!
+set +e
+wait "$GAME_PID"
+GAME_EXIT=$?
+set -e
+restore_mods_config
+exit "$GAME_EXIT"
