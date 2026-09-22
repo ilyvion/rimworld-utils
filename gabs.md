@@ -55,3 +55,14 @@ Full detail (config, output format, gotchas) is in [devtools.md](devtools.md) ("
    If the run crashes or aborts, the line never appears; if the wait seems stuck, check `games_status` (game no longer running and no end line means the run aborted; see `Player.log`).
 4. **Read the result** from `.savedatafolder/<version>/Test.log`: the last line is `Test runner finished. Result: Passed` or `Result: Failed`. Count tests with `grep -cP '^--\t\[Passed\]' Test.log` and `grep -cP '^--\t\[Failed\]' Test.log`; failure details follow each `[Failed]` line. A missing `Test.log`, or no `Test runner finished` line, means the run did not complete (check `Player.log` for `Unable to register` errors). A logged warning/error during a test fails it; see devtools.md's whitelisting section.
 5. Tests run in the same game process as normal play, so do not use `runTests` when the game must stay running for interactive verification; start it normally (without the input) for that.
+
+**Test plans**: declared the same way as `runTests`, via a `launchInputs` entry that maps to `--test-plan`/`-p`, e.g.:
+```json
+"testPlan": {
+  "description": "Run a DevTools test plan (TestPlans/<name>.xml), then quit the game",
+  "type": "string",
+  "pattern": "[A-Za-z0-9_.-]+",
+  "args": ["--test-plan", "${value}", "--exit"]
+}
+```
+started with `games_start {"gameId": "<game-id>", "launchInputs": {"testPlan": "<plan-name>"}}`. A plan spawns a second child game process per job (`TestPlans/<name>.xml`'s `jobs`); see devtools.md's "Gotchas" `--test-plan` bullet for the child's launch args, per-child log naming (`Player-child<N>.log`), and why the parent and all its children safely append into one shared `Test.log` instead of clobbering it. **Wait on a different marker than step 3**: a job can itself run a nested `--test --exit` suite, so a multi-job plan's `Test.log` can contain more than one ordinary `Test runner finished. Result:` line before the plan is actually done. The parent writes its own `Test plan finished. Result: Passed|Failed` line once, after every job has finished, so use `until grep -q "Test plan finished. Result:" ".savedatafolder/<version>/Test.log" 2>/dev/null; do sleep 2; done` for plans instead.
