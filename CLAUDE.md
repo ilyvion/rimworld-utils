@@ -34,6 +34,8 @@ Reflection is still the right tool for members that don't exist at compile time 
 
 Every project in this repo family imports `../rimworld-utils/Common.props`, which compiles in `../rimworld-utils/globalusings.cs` (via a `<Compile Include>` item — not a project-local `GlobalUsings.cs`, and not the same thing as the generated `obj/**/*.GlobalUsings.g.cs` files that `ImplicitUsings` produces, which only cover base `System.*` namespaces and are a red herring here). `globalusings.cs` declares `global using` for `System.Collections`, `System.Globalization`, `System.Reflection`, `System.Runtime.CompilerServices`, `HarmonyLib`, `RimWorld`, `UnityEngine`, and `Verse` (plus `ilyvion.Laboratory`/`ilyvion.Laboratory.Coroutines`/a `Coroutine` alias when `USE_LABORATORY` is defined). That's why any `.cs` file in these mods can reference types like `Dialog_Confirm`, `Find`, `Widgets`, `Rect`, etc. with no explicit `using` statement.
 
+**Do not investigate where a type comes from.** Missing `using` directives in a file are expected, not a mystery; don't grep `Common.props`, `globalusings.cs`, or the csproj to explain them. You don't need to know where a type comes from to use it. If a type needs a `using` that's missing, the compiler will say so at build time; there is no need to statically verify where everything comes from ahead of time.
+
 ## RimWorld game installation
 
 The installed game (Steam/Flatpak) can be found at:
