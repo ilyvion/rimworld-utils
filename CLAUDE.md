@@ -47,6 +47,35 @@ For inspecting assemblies from older versions of Rimworld, there's also these di
 - 1.4: `/home/alex/.var/app/com.valvesoftware.Steam/.steam/steam/steamapps/common/RimWorld/RimWorldLinux_Data/Managed_1.4`
 - 1.5: `/home/alex/.var/app/com.valvesoftware.Steam/.steam/steam/steamapps/common/RimWorld/RimWorldLinux_Data/Managed_1.5`
 
+## RimWorld modding lore (`lore/`)
+
+`lore/` (in the same canonical directory as this file) holds short, self-contained write-ups of RimWorld modding pitfalls and vanilla behavior. Don't read the whole directory. Before starting work in one of the areas below, read the matching file, or `grep '^## ' lore/<file>.md` for its section headings and read only the relevant sections. Also check it when an error, crash, log warning or unexpected in-game behavior in one of these areas shows up.
+
+| File | Read when working on |
+| --- | --- |
+| `lore/build.md` | Compile errors (missing `using`, wrong namespace), locating the real name of a vanilla type, background-thread restrictions (mod constructor, `MapComponent.FinalizeInit`), `About.xml` load failures |
+| `lore/harmony.md` | Writing or debugging any Harmony patch: overloads, `out`/`ref`, generics, optional-mod patches, prefix/postfix/`__result` handling, `TargetMethod`, publicizing for `nameof` |
+| `lore/defs.md` | Authoring or patching Defs: `ThingDef`, `ScenarioDef`, `NeedDef`, comps, `colorGenerator`, def-name and label restrictions, `WorldComponent.FinalizeInit` |
+| `lore/patches.md` | XML patch operations (`PatchOperationAdd`, XPath, `Patches/` file structure) |
+| `lore/things.md` | Things, buildings, blueprints/frames, zones, hediffs, filth, coolers, custom caravans and world-map movers, `ThingComp` ticking, collection ownership |
+| `lore/pawns.md` | Pawn names and traits, spawning/despawning, `WorldPawns`, finding pawns across maps, mutant/downed behavior |
+| `lore/factions.md` | Faction generation, `FactionDef` fields, `requiredCountAtGameStart` |
+| `lore/ideology.md` | Precepts, rituals, ritual quality factors |
+| `lore/ui.md` | Any IMGUI/window/gizmo/float-menu/letter/scroll-view/text-metrics work; coordinate-space conversions; hotkeys; `GameComponent`-based state |
+| `lore/sounds.md` | `SoundDef` authoring, one-shots, sustainers, camera sounds |
+| `lore/textures.md`, `lore/assets.md` | Loading textures, graphics classes, asset paths, AssetBundles, "Could not load Texture2D/AudioClip" |
+| `lore/animation.md` | Custom pawn/plant rendering, per-frame animation |
+| `lore/weather.md` | Weather changes, silencing music from a `GameCondition` |
+| `lore/world-incidents.md` | Starting `GameCondition`s, faction leader death |
+| `lore/scribe-saving.md` | Saving/loading custom `WorldObject`s, static caches surviving load/exit-to-menu |
+| `lore/performance.md` | Ticking cost, per-tick patches, pausing behavior of `MapComponent`, pawn-path pool warnings |
+| `lore/localization.md` | Any user-facing string, Keyed/DefInjected translations |
+| `lore/compat.md` | Handling conflicts with other mods' Harmony patches |
+| `lore/test-loop.md` | Reading `Player.log` errors, time-advance debug actions in tests |
+| `lore/misc.md` | 1.5 → 1.6 porting errors, `LookTargets`/`CellRect` default-value traps, second-camera rendering, stray right-click behavior |
+
+Some entries carry a `> **Unverified:**` note. Verify those claims with the decompiler MCP or the vanilla defs before relying on them.
+
 ## Generating game art
 
 - [RimWorld Art Style Guide](rimworld-art-style-guide.md) — Mandatory reference for any agent-generated game art (item icons, buildings, pawns/animals, plants, UI icons, terrain, effects) that needs to fit RimWorld's vanilla visual style and plug correctly into RimWorld's colouring system. Read it before drawing anything, not just when generating UI icons below.
