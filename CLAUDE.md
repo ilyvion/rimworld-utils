@@ -83,6 +83,10 @@ Every code change must be accompanied by one or more tests insofar as it is poss
 - Incremental builds can hide warnings from files that weren't recompiled, so the final verification build must be a clean build (e.g. `dotnet build --no-incremental`, or `dotnet clean` first) rather than an incremental one.
 - A project supports every RimWorld version listed in its `About/About.xml` `<supportedVersions>` (matching `LoadFolders.xml`'s `<vX.Y>` entries). Build with `.vscode/build.sh <version>` for _each_ supported version, not just the default/latest — a change can compile cleanly against the latest version's API while breaking an older one.
 
+## Formatting code
+
+This repo family uses `csharpier` as its code formatter, not the IDE/editorconfig-driven formatting rules. Run `csharpier format .` after making edits and before considering a change done (e.g. as the formatting step of the `address-task` skill).
+
 ## CHANGELOG.md
 
 Do not use quotation marks ("...") in CHANGELOG.md. If you need to quote something, use apostrophes, ('...').
