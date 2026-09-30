@@ -310,7 +310,7 @@ with `<writer>MyMod.Tests.PlayerLogWriter</writer>`. Failed lines also reach `Lo
 ### Recommended grep-able approach (no custom code)
 
 1. Launch with `--pid <packageId> --test --exit` (see below), redirect nothing; the game exits when done.
-2. Wait on the end line (no sleeps or timeouts): `until grep -q "Test runner finished. Result:" "<folder>/Test.log" 2>/dev/null; do sleep 2; done`. Delete the old `Test.log` before launching (`gabs-launch.sh` does), otherwise the previous run's end line satisfies the wait.
+2. Wait on the end line (no sleeps or timeouts): `until grep -q "Test runner finished. Result:" "<folder>/Test.log" 2>/dev/null; do sleep 2; done`. `gabs-launch.sh` deletes the old `Test.log` before launching, so the previous run's end line can't satisfy the wait.
 3. Pass/fail: `grep -c "^\[Failed\]" Test.log` (fixture-level failures) and `grep -P "^--\t\[Failed\]" Test.log` (failed tests); `grep -P "^--\t\[Passed\]" Test.log | wc -l` for passes; the final `Test runner finished. Result: Passed|Failed` line; game exit code (1 = failures). Read the failing lines plus the following stack-trace lines for details.
 4. Also grep `Player.log` for `Unable to register` / `must have 1 public constructor` / `Unable to fetch parameters` (discovery errors are `Log.Error` in `Player.log`, and a run with zero discovered fixtures produces no `Test.log` results at all: absence of `[Passed]`/`[Failed]` lines with a finished game means nothing ran).
 5. Without `--exit`, the runner ends by opening the Test Explorer window and the game keeps running; the end-of-run line is then **not** written, so only per-fixture lines exist and you cannot detect completion from the log alone. Use `--exit`, a custom `ILogWriter`, or a `MarkdownReport`.
