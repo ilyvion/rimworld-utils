@@ -194,8 +194,8 @@ Argument order matters: `AreEqual(expected, actual)`.
 | `Assert.ThatCollection(c).Is.Empty()` / `Not.Empty()` | `Expect.IsEmpty(c)` / `Expect.IsNotEmpty(c)` (generic `IEnumerable<T>`; non-generic collections need `.Cast<object>()`) |
 | `Assert.ThatCollection(c).Does.Contain(item)` | `Expect.IsTrue(c.Contains(item))` (or `Expect.Any(c, e => Equals(e, item))`) |
 | `Assert.ThatCollection(c).Does.Not.Contain(item)` | `Expect.IsFalse(c.Contains(item))` or `Expect.None(c, e => Equals(e, item))` |
-| `Assert.ThatFunc(() => ...).Throw()` / `Assert.ThatFunc(Action).Throw()` | `Expect.Throws<Exception>(() => ...)` |
-| `Assert.ThatFunc(...).Not.Throw()` | call the code directly (an exception fails the test) |
+| `Assert.ThatFunc(() => ...).Throw()` / `Assert.ThatFunc(Action).Throw()` (also `.Does.Throw()`) | `Expect.Throws<Exception>(() => ...)` (the lambda must be a statement expression; as a standalone statement write `_ = Expect.Throws<...>(...)` for IDE0058) |
+| `Assert.ThatFunc(...).Not.Throw()` (also `.Does.Not.Throw()`) | call the code directly (an exception fails the test); a block lambda's statements become the test method's body |
 | `Assert.That(null-able).Is.EqualTo` on a null value | RimTest fails with "non-null required"; `Expect.AreEqual` compares nulls normally |
 
 Features the RealisticOrbitalTrade tests use: `[TestSuite]` static class, `[Test]` static void, `[BeforeEach]`/`[AfterEach]`, `Assert.That(..).Is.True()/False()/EqualTo()/Not.GreaterThan()`, `Assert.ThatCollection(..).Has.Count()/Is.Empty()/Does.Contain()`, ad-hoc `new Pawn()`/`new Thing()`/`new ThingDef`, `MemoryStream` scribe round-trips. All are covered by the table. Because tests are `internal static`, the enclosing project's `InternalsVisibleTo` still applies unchanged.
@@ -325,7 +325,9 @@ Cases where the summary/end line is missing: run without `--exit`; runner corout
 "launchInputs": {
   "runTests":   { "description": "Run the DevTools test suite, then quit the game", "type": "boolean", "args": ["--test", "--exit"] },
   "testFilter": { "description": "DevTools filter expression, e.g. class == WithCountTests", "type": "string",
-                  "pattern": "[A-Za-z0-9_.=!~&| -]+", "args": ["--filter", "${value}"] }
+                  "pattern": "[A-Za-z0-9_.=!~&| -]+", "args": ["--filter", "${value}"] },
+  "testPlan":   { "description": "Run a DevTools test plan (TestPlans/<name>.xml), then quit the game", "type": "string",
+                  "pattern": "[A-Za-z0-9_.-]+", "args": ["--test-plan", "${value}", "--exit"] }
 }
 ```
 Start with the GABS MCP tool: `games_start {"gameId": "<game-id>", "launchInputs": {"runTests": true, "testFilter": "class == WithCountTests"}}` (`testFilter` optional; the result's `appliedLaunchInputs` confirms them, and `started_bridge_pending` is expected).
@@ -343,7 +345,7 @@ Any warning/error logged while a fixture runs fails it. Tests that intentionally
 [ErrorsAllowed("Tradeable lacks AnyThing")]
 public static void ReturnsNullBoundsWhenTradeableHasNoThing() { ... }
 ```
-Put the attribute on the test method that logs, not the fixture, so other tests in the fixture still fail on unexpected output. Do not use the global `warningsAllowed`/`errorsAllowed` config lists for this.
+Put the attribute on the test method that logs, not the fixture, so other tests in the fixture still fail on unexpected output. The exception is a fixture where every test triggers the same expected log (DebugAssistance's `PatchAttributeScannerTests`: each test scans the whole test assembly, which includes deliberately unresolvable patch classes); there the attribute goes on the fixture class, with a regex naming exactly those sources and a comment saying why. Do not use the global `warningsAllowed`/`errorsAllowed` config lists for this.
 
 A hand-built scribe round-trip harness (`CustomStreamReaderScribeLoader`) must call `Scribe.loader.crossRefs.RegisterForCrossRefResolve(loadTarget)` after `loadTarget.ExposeData()`; otherwise `FinalizeLoading` logs `Not all loadIDs which were read were consumed` for every reference field. `FinalizeLoading` itself resolves cross references and runs post-load inits.
 
@@ -356,6 +358,10 @@ A hand-built scribe round-trip harness (`CustomStreamReaderScribeLoader`) must c
       <CopyLocal>False</CopyLocal>
       <Private>false</Private>
   </ProjectReference>
+  ```
+  DevTools brings in `Lib.Harmony.Ref` transitively, and its reference assembly wins the conflict with Common.props' full `Lib.Harmony` (equal versions). If the mod assembly binds to a type only the full `0Harmony` has (e.g. `IsExternalInit` for `init` properties when the mod publicizes `0Harmony`), the test build fails with `CS7069: Reference to type 'IsExternalInit' claims it is defined in '0Harmony', but it could not be found`. Exclude the ref package in an `ItemGroup` conditioned on `'$(RimWorldVersion)' == '1.6'` (DebugAssistance does this):
+  ```xml
+  <PackageReference Include="Lib.Harmony.Ref" Version="2.4.2" ExcludeAssets="all" />
   ```
   `AdditionalProperties` overrides DevTools' own `OutDir` (`..\..\1.6\Assemblies\` relative to the DevTools clone) so `DevTools.dll` is built into the mod's `1.6/Assemblies`. `ProjectDependenciesBasePath` defaults to `..\..\..` (the `RimWorld/` folder), so DevTools is expected at `RimWorld/Third-Party/DevTools`. For other versions, `<Compile Remove="**/*.cs" />` makes the test assembly empty.
 - No `LoadFolders.xml` entry and no `IfModActive`: the assemblies are in the always-loaded `1.6/Assemblies`, which is gitignored. The `.sln` omits `Release|Any CPU.Build.0` for the test project, so Release/CI builds neither the test assembly nor DevTools, and neither ships. A Release restore of the `.sln` succeeds without a DevTools checkout, so CI needs no DevTools step.
@@ -390,6 +396,8 @@ Note: `Application.Quit` is only called by `--exit`; `--test` alone runs everyth
 - **Iterating:** run only the fixture you're working on (`testFilter: "class == <Fixture>"`), rebuild before each relaunch (the game loads the built mod), and stop the running game first. The runner exits when done, so `games_start` can report exit code 1 for a failing run; read the result from `Test.log`.
 - **Logged warnings/errors fail tests** (default `failOnWarnings`/`failOnErrors` true; any `Log.Warning`/`Log.Error`/exception on any thread while the fixture/test runs, including from OneTimeSetUp and map generation). RimTest Redux captured them. For code under test that logs intentionally, put `[WarningsAllowed]`/`[ErrorsAllowed]` on that test (see "Whitelisting expected log output").
 - `Expect` failures do not stop the test; keep guarding null-derefs yourself (`Expect.IsNotNull(x); if (x == null) return;`). `Test.Skip`/`Cancel` also do not stop the test.
+- **Only the first unwhitelisted log message is reported** per failing test. A test that logs several distinct unexpected messages shows one per run; grep `Player.log` for all of them before whitelisting.
+- **Name clash with Harmony:** `DevTools.Testing.MethodType` makes `MethodType` ambiguous (CS0104) in test files that also use `HarmonyLib.MethodType` (e.g. `[HarmonyPatch(typeof(T), MethodType.Getter)]`); add `using MethodType = HarmonyLib.MethodType;`.
 - Exceptions thrown by test methods are caught and recorded as failures with the unwrapped inner exception; exceptions in fixture construction or `TestType` transitions are not caught locally and can kill the run without an end line.
 - Parameter limits: at most one parameterised argument per test method/constructor; parameters without a source attribute log an error and the method is not registered (except `[TestCase]`).
 - `[SetUp]`/`[TearDown]` must return `void`; setups run before every test on the shared fixture instance (fixture fields persist across tests of one run; re-run to get a new instance).
