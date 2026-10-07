@@ -23,7 +23,7 @@ maybe_copy() {
         return 0  # not an error, just skip
     fi
 
-    cp -r "$src" "$dst"
+    cp -r --preserve=timestamps "$src" "$dst"
 }
 
 get_script_path() {
@@ -108,8 +108,8 @@ esac
 
 # copy mod files
 mkdir -p "$TARGET"
-cp -r "$RIMWORLD_VERSION" "$TARGET/$RIMWORLD_VERSION"
-maybe_copy Common "$TARGET/Common"
+cp -r --preserve=timestamps "$RIMWORLD_VERSION" "$TARGET"
+maybe_copy Common "$TARGET"
 rsync -av --exclude='*.pdn' --exclude='*.xcf' --exclude='*.svg' --exclude='*.ttf' About/ "$TARGET/About"
 maybe_copy CHANGELOG.md "$TARGET"
 maybe_copy LICENSE "$TARGET"
@@ -117,8 +117,8 @@ maybe_copy README.md "$TARGET"
 maybe_copy LoadFolders.xml "$TARGET"
 for file in "${EXTRA_FILES[@]}"; do
     if [[ -e "$file" ]]; then
-        dest="$TARGET/$file"
-        mkdir -p "$(dirname "$dest")"
+        dest="$(dirname "$TARGET/$file")"
+        mkdir -p "$dest"
         maybe_copy "$file" "$dest"
     else
         echo "Warning: Extra file '$file' from 'EXTRA_FILES' does not exist, skipping."
@@ -128,8 +128,8 @@ EXTRA_RW_VERSION_FILES="EXTRA_RW_${RIMWORLD_VERSION//./_}_FILES"
 EXTRA_RW_VERSION_FILES_REF="$EXTRA_RW_VERSION_FILES[@]"
 for file in "${!EXTRA_RW_VERSION_FILES_REF}"; do
     if [[ -e "$file" ]]; then
-        dest="$TARGET/$file"
-        mkdir -p "$(dirname "$dest")"
+        dest="$(dirname "$TARGET/$file")"
+        mkdir -p "$dest"
         maybe_copy "$file" "$dest"
     else
         echo "Warning: Extra RW version ${RIMWORLD_VERSION} file '$file' from '${EXTRA_RW_VERSION_FILES}' does not exist, skipping."
