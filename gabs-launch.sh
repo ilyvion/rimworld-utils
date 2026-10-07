@@ -26,16 +26,30 @@
 # Configuration is loaded from .vscode/build_config.sh, the same file
 # build.sh reads. Recognized variables (all optional):
 # - RIMWORLD_VERSION: Version of RimWorld to launch (default: 1.6)
-# - RIMWORLD_EXECUTABLE: Path to the RimWorld executable inside the Flatpak
-#   Steam install (default: standard Flatpak Steam location)
+# - STEAM_COMMON: The Flatpak Steam install's steamapps/common folder
+#   (default: standard Flatpak Steam location)
+# - GAMES_DIR: Folder holding copies of RimWorld versions, one per version, as
+#   <GAMES_DIR>/<version>/RimWorld (default: Games/ next to this script's resolved location,
+#   i.e. in rimworld-utils)
+# - RIMWORLD_EXECUTABLE: Path to the RimWorld executable (default:
+#   GAMES_DIR/<version>/RimWorld/RimWorldLinux)
 # - GABS_LAUNCH_ARGS: Array of extra RimWorld command-line arguments
 # - MOD_NAME / TARGET: Where build.sh installs the mod (only needed for DevTools test runs)
 #
+# Every version runs inside the Steam Linux Runtime, as Steam itself launches them.
+#
 # Arguments GABS passes to this script (its `args`, profile args and launch inputs) are forwarded
-# to RimWorld. For DevTools test runs (see devtools.md), declare launch inputs in the GABS game
-# config, e.g.:
+# to RimWorld, except `--rimworld-version <version>`, which overrides RIMWORLD_VERSION for this
+# launch. To pick the version per launch and for DevTools test runs (see devtools.md), declare
+# launch inputs in the GABS game config, e.g.:
 #
 #   "launchInputs": {
+#     "rimworldVersion": {
+#       "description": "RimWorld version to build and launch",
+#       "type": "string",
+#       "pattern": "1\\.[0-9]+",
+#       "args": ["--rimworld-version", "${value}"]
+#     },
 #     "runTests": {
 #       "description": "Run the DevTools test suite, then quit the game",
 #       "type": "boolean",
@@ -66,11 +80,13 @@ set -euo pipefail
 PROJECT_DIR="$(pwd)"
 CONFIG_FILE="$PROJECT_DIR/.vscode/build_config.sh"
 
-ALLOWED_VARS=(MOD_NAME TARGET RIMWORLD_VERSION RIMWORLD_EXECUTABLE GABS_LAUNCH_ARGS)
+ALLOWED_VARS=(MOD_NAME TARGET RIMWORLD_VERSION STEAM_COMMON GAMES_DIR RIMWORLD_EXECUTABLE GABS_LAUNCH_ARGS)
 
 MOD_NAME=""
 TARGET=""
 RIMWORLD_VERSION=""
+STEAM_COMMON=""
+GAMES_DIR=""
 RIMWORLD_EXECUTABLE=""
 GABS_LAUNCH_ARGS=()
 
@@ -89,15 +105,28 @@ if [[ -f "$CONFIG_FILE" ]]; then
     eval "$VARS"
 fi
 
+FORWARDED_ARGS=()
+while [[ $# -gt 0 ]]; do
+    if [[ "$1" == "--rimworld-version" && $# -ge 2 ]]; then
+        RIMWORLD_VERSION="$2"
+        shift 2
+    else
+        FORWARDED_ARGS+=("$1")
+        shift
+    fi
+done
+
 RIMWORLD_VERSION="${RIMWORLD_VERSION:-1.6}"
-RIMWORLD_EXECUTABLE="${RIMWORLD_EXECUTABLE:-$HOME/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/RimWorld/RimWorldLinux}"
+STEAM_COMMON="${STEAM_COMMON:-$HOME/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common}"
+GAMES_DIR="${GAMES_DIR:-$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/Games}"
+RIMWORLD_EXECUTABLE="${RIMWORLD_EXECUTABLE:-$GAMES_DIR/$RIMWORLD_VERSION/RimWorld/RimWorldLinux}"
+GAME_DIR="$(dirname "$RIMWORLD_EXECUTABLE")"
 
 SAVE_DIR="$PROJECT_DIR/.savedatafolder/$RIMWORLD_VERSION"
 mkdir -p "$SAVE_DIR"
 
 "$PROJECT_DIR/.vscode/build.sh" "$RIMWORLD_VERSION"
 
-FORWARDED_ARGS=("$@")
 RUNNING_TESTS=false
 CONFIG_NAME=UnitTestConfig
 HAS_PID=false
@@ -115,7 +144,7 @@ if [[ "$RUNNING_TESTS" == true ]]; then
         PACKAGE_ID="$(sed -n 's:.*<packageId>\(.*\)</packageId>.*:\1:p' "$PROJECT_DIR/About/About.xml" | head -1)"
         FORWARDED_ARGS=(--pid "$PACKAGE_ID" "${FORWARDED_ARGS[@]}")
     fi
-    TARGET="${TARGET:-$HOME/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/RimWorld/Mods/$MOD_NAME}"
+    TARGET="${TARGET:-$STEAM_COMMON/RimWorld/Mods/$MOD_NAME}"
     # build.sh empties the mod folder, so the config is written after it. Test.log is truncated
     # by DevTools at the start of each run; remove it too so a stale one can't be read.
     mkdir -p "$TARGET/Configs"
@@ -168,14 +197,27 @@ stop_game() {
 }
 trap stop_game TERM INT
 
-flatpak-spawn --host flatpak run \
+# Runs on the host: joins Steam's sandbox (--parent-pid) the way Steam's own launches do.
+flatpak-spawn --host bash -c '
+    steam_pid=$(pgrep -o -f "/ubuntu12_32/steam ") || { echo "Steam is not running" >&2; exit 1; }
+    exec flatpak run --parent-pid="$steam_pid" --parent-share-pids "$@"
+' bash \
   --filesystem="$PROJECT_DIR" \
+  --filesystem="$GAME_DIR" \
   --env=HARMONY_LOG_FILE="$SAVE_DIR/Harmony.log" \
   --env=GABP_SERVER_PORT="${GABP_SERVER_PORT:?GABP_SERVER_PORT not set; run this script through GABS}" \
   --env=GABP_TOKEN="${GABP_TOKEN:?GABP_TOKEN not set; run this script through GABS}" \
   --env=GABS_GAME_ID="${GABS_GAME_ID:-rimworld}" \
-  --command="$RIMWORLD_EXECUTABLE" \
+  --env=PRESSURE_VESSEL_FILESYSTEMS_RW="$PROJECT_DIR:$GAME_DIR" \
+  --env=SteamAppId=294100 \
+  --env=SteamGameId=294100 \
+  --command="$STEAM_COMMON/SteamLinuxRuntime_soldier/_v2-entry-point" \
   com.valvesoftware.Steam \
+  --verb=waitforexitandrun \
+  -- \
+  "$STEAM_COMMON/SteamLinuxRuntime/scout-on-soldier-entry-point-v2" \
+  -- \
+  "$RIMWORLD_EXECUTABLE" \
   -logfile "$SAVE_DIR/Player.log" \
   -savedatafolder="$SAVE_DIR" \
   "${GABS_LAUNCH_ARGS[@]}" \
