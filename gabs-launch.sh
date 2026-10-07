@@ -25,18 +25,20 @@
 #
 # Configuration is loaded from .vscode/build_config.sh, the same file
 # build.sh reads. Recognized variables (all optional):
-# - RIMWORLD_VERSION: Version of RimWorld to launch (default: 1.6)
+# - RIMWORLD_VERSION: Version of RimWorld to launch (default: 1.7)
 # - STEAM_COMMON: The Flatpak Steam install's steamapps/common folder
 #   (default: standard Flatpak Steam location)
-# - GAMES_DIR: Folder holding copies of RimWorld versions, one per version, as
+# - GAMES_DIR: Folder holding copies of older RimWorld versions, one per version, as
 #   <GAMES_DIR>/<version>/RimWorld (default: Games/ next to this script's resolved location,
 #   i.e. in rimworld-utils)
 # - RIMWORLD_EXECUTABLE: Path to the RimWorld executable (default:
-#   GAMES_DIR/<version>/RimWorld/RimWorldLinux)
+#   GAMES_DIR/<version>/RimWorld/RimWorldLinux for 1.6 and earlier, RimWorld/RimWorld under
+#   STEAM_COMMON for 1.7 and later)
 # - GABS_LAUNCH_ARGS: Array of extra RimWorld command-line arguments
 # - MOD_NAME / TARGET: Where build.sh installs the mod (only needed for DevTools test runs)
 #
-# Every version runs inside the Steam Linux Runtime, as Steam itself launches them.
+# Every version runs inside the Steam Linux Runtime, as Steam itself launches them. RimWorld 1.7
+# and later have no -logfile option, so their output is written to Player.log instead.
 #
 # Arguments GABS passes to this script (its `args`, profile args and launch inputs) are forwarded
 # to RimWorld, except `--rimworld-version <version>`, which overrides RIMWORLD_VERSION for this
@@ -116,10 +118,16 @@ while [[ $# -gt 0 ]]; do
     fi
 done
 
-RIMWORLD_VERSION="${RIMWORLD_VERSION:-1.6}"
+RIMWORLD_VERSION="${RIMWORLD_VERSION:-1.7}"
 STEAM_COMMON="${STEAM_COMMON:-$HOME/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common}"
 GAMES_DIR="${GAMES_DIR:-$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/Games}"
-RIMWORLD_EXECUTABLE="${RIMWORLD_EXECUTABLE:-$GAMES_DIR/$RIMWORLD_VERSION/RimWorld/RimWorldLinux}"
+if [[ "$RIMWORLD_VERSION" == 1.[0-6] ]]; then
+    HAS_LOGFILE=true
+    RIMWORLD_EXECUTABLE="${RIMWORLD_EXECUTABLE:-$GAMES_DIR/$RIMWORLD_VERSION/RimWorld/RimWorldLinux}"
+else
+    HAS_LOGFILE=false
+    RIMWORLD_EXECUTABLE="${RIMWORLD_EXECUTABLE:-$STEAM_COMMON/RimWorld/RimWorld}"
+fi
 GAME_DIR="$(dirname "$RIMWORLD_EXECUTABLE")"
 
 SAVE_DIR="$PROJECT_DIR/.savedatafolder/$RIMWORLD_VERSION"
@@ -197,11 +205,27 @@ stop_game() {
 }
 trap stop_game TERM INT
 
-# Runs on the host: joins Steam's sandbox (--parent-pid) the way Steam's own launches do.
+if [[ "$HAS_LOGFILE" == true ]]; then
+    CAPTURED_LOG=""
+    LOG_ARGS=(-logfile "$SAVE_DIR/Player.log")
+else
+    CAPTURED_LOG="$SAVE_DIR/Player.log"
+    LOG_ARGS=()
+fi
+
+# Runs on the host: joins Steam's sandbox (--parent-pid) the way Steam's own launches do, and, when
+# given a log path, writes the game's output, minus terminal color codes, to it.
 flatpak-spawn --host bash -c '
+    set -o pipefail
+    log=$1
+    shift
     steam_pid=$(pgrep -o -f "/ubuntu12_32/steam ") || { echo "Steam is not running" >&2; exit 1; }
-    exec flatpak run --parent-pid="$steam_pid" --parent-share-pids "$@"
-' bash \
+    if [[ -z "$log" ]]; then
+        exec flatpak run --parent-pid="$steam_pid" --parent-share-pids "$@"
+    fi
+    flatpak run --parent-pid="$steam_pid" --parent-share-pids "$@" 2>&1 \
+        | sed -u "s/\x1b\[[0-9;]*[A-Za-z]//g" > "$log"
+' bash "$CAPTURED_LOG" \
   --filesystem="$PROJECT_DIR" \
   --filesystem="$GAME_DIR" \
   --env=HARMONY_LOG_FILE="$SAVE_DIR/Harmony.log" \
@@ -218,7 +242,7 @@ flatpak-spawn --host bash -c '
   "$STEAM_COMMON/SteamLinuxRuntime/scout-on-soldier-entry-point-v2" \
   -- \
   "$RIMWORLD_EXECUTABLE" \
-  -logfile "$SAVE_DIR/Player.log" \
+  "${LOG_ARGS[@]}" \
   -savedatafolder="$SAVE_DIR" \
   "${GABS_LAUNCH_ARGS[@]}" \
       "${FORWARDED_ARGS[@]}" &

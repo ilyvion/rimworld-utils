@@ -39,13 +39,16 @@ The launcher is `gabs-launch.sh`, which runs `.vscode/build.sh <version>` itself
 
 **Filter runs.** While implementing, always run DevTools tests filtered (`testFilter`, e.g. `class == FooTests` or `method == Bar`) to save time. Run the full unfiltered suite only once, as the final regression run before considering an implementation done.
 
+**`testFilter` syntax: join conditions with `||` or `&&` (or `or`/`and`), never a single `|` or `&`.** For several fixtures, write `class == FooTests || class == BarTests`. A single `|` is silently dropped by DevTools' tokenizer, the filter fails to parse, and the run never starts: no `Test.log`, the game doesn't quit, and the wait in step 3 hangs. There are no parentheses, and conditions combine left to right. The full grammar is in devtools.md ("Filter expressions").
+
 Full detail (config, output format, gotchas) is in [devtools.md](devtools.md) ("Verified workflow"). Summary:
 
-1. **Prerequisites.** The mod under test must be enabled in the instance's `ModsConfig.xml`; DevTools is not a mod and needs no entry (`DevTools.dll` loads from the mod's own `1.6/Assemblies`). The GABS game config must declare the `runTests` (and optionally `testFilter`) launch inputs, and GABS must be >= 1.1.0 (see devtools.md for the snippet). Only RimWorld 1.6 supports DevTools.
+1. **Prerequisites.** The mod under test must be enabled in the instance's `ModsConfig.xml`; DevTools is not a mod and needs no entry (`DevTools.dll` loads from the mod's own `<version>/Assemblies`). The GABS game config must declare the `runTests` (and optionally `testFilter` and `rimworldVersion`) launch inputs, and GABS must be >= 1.1.0 (see devtools.md for the snippet). DevTools supports RimWorld 1.6 and 1.7; the version launched is the `rimworldVersion` input if given, else `RIMWORLD_VERSION` from `.vscode/build_config.sh`.
 2. **Start the run.** Call the GABS MCP `games_start` tool with `launchInputs`:
    ```
    games_start {"gameId": "<game-id>", "launchInputs": {"runTests": true}}
    games_start {"gameId": "<game-id>", "launchInputs": {"runTests": true, "testFilter": "class == WithCountTests"}}
+   games_start {"gameId": "<game-id>", "launchInputs": {"rimworldVersion": "1.7", "runTests": true}}
    ```
    The result lists `appliedLaunchInputs`; if it doesn't include `runTests`, the input isn't declared in the GABS game config (check with `games_show`). The result code `started_bridge_pending` is expected, since there is no bridge to attach to. `gabs-launch.sh` builds the mod, adds `--pid <packageId>`, writes `Configs/UnitTestConfig.xml`, and launches. The game **quits by itself** at the end of the run; there is nothing to stop afterwards.
 3. **Wait for the end line in `Test.log`.** DevTools writes to `.savedatafolder/<version>/Test.log`, not `Player.log`, and has no `TESTING START/END` markers; `--exit` makes its last line `Test runner finished. Result: Passed|Failed`. `gabs-launch.sh` deletes the previous `Test.log` before launching the game, and `games_start` only returns once the game is running, so the file you wait on is always the new run's. Use a backgrounded shell wait (`run_in_background: true`) that notifies once on match, no sleeps or timeouts:

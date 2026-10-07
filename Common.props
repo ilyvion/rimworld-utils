@@ -4,10 +4,10 @@
         <!-- TODO: When nearly all projects use it, switch this to true -->
         <UseLaboratory Condition="'$(UseLaboratory)'==''">false</UseLaboratory>
         <UseTaggedUnions Condition="'$(UseTaggedUnions)'==''">false</UseTaggedUnions>
+        <RimWorldVersion Condition="'$(RimWorldVersion)'==''">1.7</RimWorldVersion>
     </PropertyGroup>
     <PropertyGroup>
         <OutputType>Library</OutputType>
-        <TargetFramework>net481</TargetFramework>
         <PlatformTarget>x64</PlatformTarget>
         <LangVersion>latest</LangVersion>
         <Nullable>enable</Nullable>
@@ -20,8 +20,19 @@
         <WarningLevel>9999</WarningLevel>
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     </PropertyGroup>
+    <Choose>
+        <When Condition="'$(RimWorldVersion)' == '1.7'">
+            <PropertyGroup>
+                <TargetFramework>net10.0</TargetFramework>
+            </PropertyGroup>
+        </When>
+        <Otherwise>
+            <PropertyGroup>
+                <TargetFramework>net481</TargetFramework>
+            </PropertyGroup>
+        </Otherwise>
+    </Choose>
     <PropertyGroup>
-        <RimWorldVersion Condition="'$(RimWorldVersion)'==''">1.6</RimWorldVersion>
         <ProjectDependenciesBasePath Condition="'$(ProjectDependenciesBasePath)'==''"
             >..\..\..</ProjectDependenciesBasePath>
         <RimWorldSteamWorkshopFolderPath Condition="'$(RimWorldSteamWorkshopFolderPath)'==''"
@@ -41,6 +52,13 @@
         <Optimize>false</Optimize>
     </PropertyGroup>
     <Choose>
+        <When Condition="'$(RimWorldVersion)' == '1.7'">
+            <PropertyGroup>
+                <DefineConstants>$(DefineConstants);v1_7;v1_7_OR_GREATER;v1_6_OR_GREATER;v1_5_OR_GREATER;v1_4_OR_GREATER;v1_3_OR_GREATER</DefineConstants>
+                <!-- .NET (Core) class libraries don't copy NuGet dependencies to the output by default, but we want that -->
+                <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+            </PropertyGroup>
+        </When>
         <When Condition="'$(RimWorldVersion)' == '1.6'">
             <PropertyGroup>
                 <DefineConstants>$(DefineConstants);v1_6;v1_6_OR_GREATER;v1_5_OR_GREATER;v1_4_OR_GREATER;v1_3_OR_GREATER</DefineConstants>
@@ -82,15 +100,33 @@
             </ItemGroup>
         </When>
     </Choose>
+    <Choose>
+        <When Condition="'$(RimWorldVersion)' == '1.7'">
+            <ItemGroup>
+                <!-- Newest 3.0.x, prereleases included -->
+                <PackageReference Include="Lib.Harmony" Version="3.0.*-*">
+                    <ExcludeAssets>runtime</ExcludeAssets>
+                </PackageReference>
+                <!-- Newest 1.7.x, prereleases included -->
+                <PackageReference Include="Krafs.Rimworld.Ref" Version="1.7.*-*">
+                    <ExcludeAssets>runtime</ExcludeAssets>
+                </PackageReference>
+            </ItemGroup>
+        </When>
+        <Otherwise>
+            <ItemGroup>
+                <PackageReference Include="Krafs.Rimworld.Ref" Version="$(RimWorldVersion).*">
+                    <ExcludeAssets>runtime</ExcludeAssets>
+                </PackageReference>
+                <PackageReference Include="PolySharp" Version="1.14.1">
+                    <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+                    <PrivateAssets>all</PrivateAssets>
+                </PackageReference>
+            </ItemGroup>
+        </Otherwise>
+    </Choose>
     <ItemGroup>
-        <PackageReference Include="Krafs.Rimworld.Ref" Version="$(RimWorldVersion).*">
-            <ExcludeAssets>runtime</ExcludeAssets>
-        </PackageReference>
         <PackageReference Include="Krafs.Publicizer" Version="2.2.1">
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-            <PrivateAssets>all</PrivateAssets>
-        </PackageReference>
-        <PackageReference Include="PolySharp" Version="1.14.1">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>

@@ -5,7 +5,42 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Rimworld Mod Project",
+            "name": "Rimworld Mod Project 1.7",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build 1.7",
+            "args": [
+                "--host",
+                "bash",
+                "-c",
+                // Share the running Steam client's PID namespace so steamclient.so can find and talk to it,
+                // and tee the game's output, minus ANSI escape codes, into the log file given as the first argument, since the game has no -logfile
+                "set -o pipefail; log=$1; shift; steam_pid=$(pgrep -o -f '/ubuntu12_32/steam ') || { echo 'Steam is not running' >&2; exit 1; }; mkdir -p \"$(dirname \"$log\")\" && flatpak run --parent-pid=\"$steam_pid\" --parent-share-pids \"$@\" 2>&1 | tee >(sed -u 's/\\x1b\\[[0-9;]*[A-Za-z]//g' > \"$log\")",
+                "bash",
+                "${workspaceFolder}/.savedatafolder/1.7/Player.log",
+                "--filesystem=${workspaceFolder}",
+                "--env=HARMONY_LOG_FILE=${workspaceFolder}/.savedatafolder/1.7/Harmony.log",
+                "--env=PRESSURE_VESSEL_FILESYSTEMS_RW=${workspaceFolder}",
+                "--env=SteamAppId=294100",
+                "--env=SteamGameId=294100",
+                "--command=/home/alex/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/SteamLinuxRuntime_soldier/_v2-entry-point",
+                "com.valvesoftware.Steam",
+                "--verb=waitforexitandrun",
+                "--",
+                "/home/alex/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/SteamLinuxRuntime/scout-on-soldier-entry-point-v2",
+                "--",
+                "/home/alex/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/RimWorld/RimWorld",
+                // "-popupwindow",
+                "-savedatafolder=${workspaceFolder}/.savedatafolder/1.7"
+            ],
+            "program": "flatpak-spawn",
+            "cwd": "${workspaceFolder}",
+            "console": "internalConsole",
+            "internalConsoleOptions": "neverOpen",
+            "stopAtEntry": false
+        },
+        {
+            "name": "Rimworld Mod Project Pre-1.7",
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build ${input:rimWorldVersion}",

@@ -11,5 +11,9 @@ global using Verse;
 global using ilyvion.Laboratory;
 global using ilyvion.Laboratory.Coroutines;
 global using Coroutine = System.Collections.Generic.IEnumerable<ilyvion.Laboratory.Coroutines.IResumeCondition>;
+#if !v1_7_OR_GREATER
+// Unity's mscorlib has an unrelated public System.Threading.Lock.
+global using Lock = ilyvion.Laboratory.Lock;
+#endif
 #endif
 #pragma warning restore IDE0005 // Using directive is unnecessary.

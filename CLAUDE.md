@@ -38,16 +38,12 @@ Every project in this repo family imports `../rimworld-utils/Common.props`, whic
 
 ## RimWorld game installation
 
-The installed game (Steam/Flatpak) can be found at:
+The installed game (Steam/Flatpak) is RimWorld 1.7, found at:
 
-- Managed assemblies (e.g. `Assembly-CSharp.dll`): `/home/alex/.var/app/com.valvesoftware.Steam/.steam/steam/steamapps/common/RimWorld/RimWorldLinux_Data/Managed`
+- Assemblies (e.g. `Assembly-CSharp.dll`, `UnityStubs.dll`, `Waylith.dll`): directly in the game root, `/home/alex/.var/app/com.valvesoftware.Steam/.steam/steam/steamapps/common/RimWorld`
 - Game data (defs, textures, etc.): `/home/alex/.var/app/com.valvesoftware.Steam/.steam/steam/steamapps/common/RimWorld/Data`
 
-For inspecting assemblies from older versions of Rimworld, there's also these directories:
-
-- 1.3: `/home/alex/.var/app/com.valvesoftware.Steam/.steam/steam/steamapps/common/RimWorld/RimWorldLinux_Data/Managed_1.3`
-- 1.4: `/home/alex/.var/app/com.valvesoftware.Steam/.steam/steam/steamapps/common/RimWorld/RimWorldLinux_Data/Managed_1.4`
-- 1.5: `/home/alex/.var/app/com.valvesoftware.Steam/.steam/steam/steamapps/common/RimWorld/RimWorldLinux_Data/Managed_1.5`
+Assemblies for older versions of RimWorld (1.3, 1.4, 1.5, 1.6) are in `/home/alex/Documents/Projects/RimWorld/rimworld-utils/Game Assemblies/<version>/`, e.g. `/home/alex/Documents/Projects/RimWorld/rimworld-utils/Game Assemblies/1.6/Assembly-CSharp.dll`. Use these, not the game installation, for anything specific to a version older than 1.7.
 
 ## RimWorld modding lore (`lore/`)
 

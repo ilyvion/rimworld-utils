@@ -88,5 +88,5 @@
     >
         <BuildDependsOn></BuildDependsOn>
     </PropertyGroup>
-    <Import Project="Krafs.targets" />
+    <!-- <Import Project="Krafs.targets" /> -->
 </Project>

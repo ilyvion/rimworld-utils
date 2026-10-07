@@ -30,11 +30,24 @@
             "type": "shell",
             "group": {
                 "kind": "build",
-                "isDefault": true
+                "isDefault": false
             },
             "command": ".vscode/build.sh",
             "args": [
                 "1.6"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "build 1.7",
+            "type": "shell",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "command": ".vscode/build.sh",
+            "args": [
+                "1.7"
             ],
             "problemMatcher": []
         }
@@ -45,12 +58,13 @@
             "type": "pickString",
             "description": "Rimworld version to build?",
             "options": [
+                "1.7",
                 "1.6",
                 "1.5",
                 "1.4",
                 "1.3"
             ],
-            "default": "1.6"
+            "default": "1.7"
         }
     ]
 }

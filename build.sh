@@ -7,8 +7,10 @@
 # The script expects the following variables to be set:
 # - MOD_NAME: Name of the mod (required)
 # - CONFIGURATION: Build configuration (optional, default: Debug)
-# - RIMWORLD_VERSION: Version of RimWorld (optional, default: 1.6, can also be overridden by command line argument)
+# - TARGET: Mod folder to install into (optional, default: Mods/$MOD_NAME in the Flatpak Steam RimWorld install)
+# - RIMWORLD_VERSION: Version of RimWorld (optional, default: 1.7; the first command line argument, when given, takes precedence)
 # - EXTRA_FILES: Array of additional files to copy (optional, default: empty)
+# - EXTRA_RW_<major>_<minor>_FILES (e.g. EXTRA_RW_1_7_FILES): Array of additional files to copy when building that version (optional, default: empty)
 # - SKIP_BUILD: If set to true, the build step is skipped (optional, default false)
 # - SKIP_MOD_FOLDER_REMOVAL: If set to true, the target mod folder is not emptied before copying (optional, default false)
 
@@ -45,7 +47,7 @@ CONFIG_FILE="./.vscode/build_config.sh"
 # Define allowed variables
 ALLOWED_VARS=(
     CONFIGURATION MOD_NAME TARGET RIMWORLD_VERSION SKIP_BUILD SKIP_MOD_FOLDER_REMOVAL EXTRA_FILES
-    EXTRA_RW_1_6_FILES EXTRA_RW_1_5_FILES EXTRA_RW_1_4_FILES EXTRA_RW_1_3_FILES
+    EXTRA_RW_1_7_FILES EXTRA_RW_1_6_FILES EXTRA_RW_1_5_FILES EXTRA_RW_1_4_FILES EXTRA_RW_1_3_FILES
 )
 
 # Source config in a subshell so it doesn't pollute our environment
@@ -72,7 +74,7 @@ fi
 CONFIGURATION="${CONFIGURATION:-Debug}"
 : "${MOD_NAME:?MOD_NAME is not set}"
 TARGET="${TARGET:-$HOME/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/RimWorld/Mods/$MOD_NAME}"
-RIMWORLD_VERSION="${RIMWORLD_VERSION:-${1:-1.6}}"
+RIMWORLD_VERSION="${1:-${RIMWORLD_VERSION:-1.7}}"
 SKIP_BUILD="${SKIP_BUILD:-false}"
 SKIP_MOD_FOLDER_REMOVAL="${SKIP_MOD_FOLDER_REMOVAL:-false}"
 
