@@ -315,3 +315,23 @@ jobs:
                   STEAM_USERNAME: ${{ secrets.STEAM_USERNAME }}
                   STEAM_PASSWORD: ${{ secrets.STEAM_PASSWORD }}
                   STEAM_TFASEED: ${{ secrets.STEAM_TFASEED }}
+
+            - name: Checkout rimworld-utils Repository
+              if: ${{ inputs.upload_to_steam && steps.published_file_id_check.outputs.exists == 'true' }}
+              uses: actions/checkout@v4
+              with:
+                  repository: "ilyvion/rimworld-utils"
+                  path: "rimworld-utils"
+                  sparse-checkout: steam_workshop_tags.py
+                  sparse-checkout-cone-mode: false
+
+            # SteamCMD can't set Workshop tags, so the version tags are synced with About.xml separately
+            - name: Update Steam Workshop Tags
+              if: ${{ inputs.upload_to_steam && steps.published_file_id_check.outputs.exists == 'true' }}
+              env:
+                  STEAM_USERNAME: ${{ secrets.STEAM_USERNAME }}
+                  STEAM_PASSWORD: ${{ secrets.STEAM_PASSWORD }}
+                  STEAM_TFASEED: ${{ secrets.STEAM_TFASEED }}
+                  ITEM_ID: ${{ steps.mod_item_id.outputs.itemid }}
+                  ABOUT_XML: ${{ steps.variables.outputs.mod_path }}/About/About.xml
+              run: pipx run rimworld-utils/steam_workshop_tags.py "$ITEM_ID" --versions-from "$ABOUT_XML"
