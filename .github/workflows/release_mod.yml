@@ -53,10 +53,14 @@ jobs:
                   fetch-depth: 0
 
             - name: Check Steam Description for Changes Since Last Release
+              id: steam_description
               shell: bash
               env:
                   CURRENT_TAG: ${{ steps.variables.outputs.version }}
+                  UPLOAD_TO_STEAM: ${{ inputs.upload_to_steam }}
               run: |
+                  echo "changed=false" >> "$GITHUB_OUTPUT"
+
                   if [ ! -f "SteamDescription.txt" ]; then
                     echo "::warning file=SteamDescription.txt,title=Steam Description Missing::No SteamDescription.txt found in the repository root."
                     exit 0
@@ -70,7 +74,12 @@ jobs:
                   fi
 
                   if ! git diff --quiet "$previous_tag" "$CURRENT_TAG" -- SteamDescription.txt; then
-                    echo "::notice file=SteamDescription.txt,title=Steam Description Changed::SteamDescription.txt has changed since the last release ($previous_tag). Remember to update the Steam Workshop description after this release."
+                    echo "changed=true" >> "$GITHUB_OUTPUT"
+                    if [ "$UPLOAD_TO_STEAM" = "true" ]; then
+                      echo "::notice file=SteamDescription.txt,title=Steam Description Changed::SteamDescription.txt has changed since the last release ($previous_tag). The Steam Workshop description will be updated after the upload."
+                    else
+                      echo "::notice file=SteamDescription.txt,title=Steam Description Changed::SteamDescription.txt has changed since the last release ($previous_tag). Remember to update the Steam Workshop description after this release."
+                    fi
                   fi
 
             - name: Verify Release Tag Is Signed
@@ -322,16 +331,23 @@ jobs:
               with:
                   repository: "ilyvion/rimworld-utils"
                   path: "rimworld-utils"
-                  sparse-checkout: steam_workshop_tags.py
+                  sparse-checkout: steam_workshop_update.py
                   sparse-checkout-cone-mode: false
 
-            # SteamCMD can't set Workshop tags, so the version tags are synced with About.xml separately
-            - name: Update Steam Workshop Tags
+            # The upload action can't set Workshop tags or the description, so they are updated separately
+            - name: Update Steam Workshop Tags and Description
               if: ${{ inputs.upload_to_steam && steps.published_file_id_check.outputs.exists == 'true' }}
+              shell: bash
               env:
                   STEAM_USERNAME: ${{ secrets.STEAM_USERNAME }}
                   STEAM_PASSWORD: ${{ secrets.STEAM_PASSWORD }}
                   STEAM_TFASEED: ${{ secrets.STEAM_TFASEED }}
                   ITEM_ID: ${{ steps.mod_item_id.outputs.itemid }}
                   ABOUT_XML: ${{ steps.variables.outputs.mod_path }}/About/About.xml
-              run: pipx run rimworld-utils/steam_workshop_tags.py "$ITEM_ID" --versions-from "$ABOUT_XML"
+                  DESCRIPTION_CHANGED: ${{ steps.steam_description.outputs.changed }}
+              run: |
+                  args=("$ITEM_ID" --versions-from "$ABOUT_XML")
+                  if [ "$DESCRIPTION_CHANGED" = "true" ]; then
+                    args+=(--description-from SteamDescription.txt)
+                  fi
+                  pipx run rimworld-utils/steam_workshop_update.py "${args[@]}"

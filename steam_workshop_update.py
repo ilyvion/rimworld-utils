@@ -2,14 +2,14 @@
 # requires-python = ">=3.9"
 # dependencies = ["websocket-client==1.9.2", "rsa==4.9.1", "pyasn1==0.6.4"]
 # ///
-"""Adds, removes or syncs the tags on a Steam Workshop item.
+"""Updates the tags and description of a Steam Workshop item.
 
-SteamCMD cannot change Workshop tags, so this logs in to a Steam CM server as a Steam client (the
-same way the Steam client and the steam-user/steam-session Node libraries do) and sends the
-PublishedFile.Update#1 service call with the new tag list.
+This logs in to a Steam CM server as a Steam client (the same way the Steam client and the
+steam-user/steam-session Node libraries do) and sends the PublishedFile.Update#1 service call with
+the new tags and description. Nothing is sent when the item is already up to date.
 
-The dependencies are declared inline (PEP 723), so `uv run steam_workshop_tags.py` or
-`pipx run steam_workshop_tags.py` installs them into a temporary environment.
+The dependencies are declared inline (PEP 723), so `uv run steam_workshop_update.py` or
+`pipx run steam_workshop_update.py` installs them into a temporary environment.
 
 Credentials come from the environment:
     STEAM_USERNAME, STEAM_PASSWORD  the account that owns the Workshop item
@@ -18,9 +18,10 @@ Credentials come from the environment:
                                     the mobile authenticator enabled
 
 Examples:
-    steam_workshop_tags.py 2009463077 --versions-from MyMod/About/About.xml
-    steam_workshop_tags.py 2009463077 --add 1.7 --remove 1.3 --dry-run
-    steam_workshop_tags.py 2009463077 --check-login
+    steam_workshop_update.py 2009463077 --versions-from MyMod/About/About.xml
+    steam_workshop_update.py 2009463077 --description-from MyMod/SteamDescription.txt
+    steam_workshop_update.py 2009463077 --add 1.7 --remove 1.3 --dry-run
+    steam_workshop_update.py 2009463077 --check-login
 """
 
 import argparse
@@ -58,7 +59,7 @@ VERIFY_DELAY = 2
 PROTOCOL_VERSION = 65580
 PROTO_MASK = 0x80000000
 JOBID_NONE = 0xFFFFFFFFFFFFFFFF
-DEVICE_NAME = "steam_workshop_tags.py"
+DEVICE_NAME = "steam_workshop_update.py"
 
 EMSG_MULTI = 1
 EMSG_SERVICE_METHOD_RESPONSE = 147
@@ -439,7 +440,7 @@ def authenticate(cm, username, password, shared_secret):
         time.sleep(interval)
 
 
-# Workshop tags
+# Workshop item updates
 
 
 def fetch_public_details(item_id):
@@ -454,6 +455,7 @@ def fetch_public_details(item_id):
         "title": details.get("title", ""),
         "appid": details.get("consumer_app_id"),
         "tags": [t["tag"] for t in details.get("tags", [])],
+        "description": details.get("description", ""),
     }
 
 
@@ -467,11 +469,17 @@ def fetch_session_details(cm, item_id):
         "title": pb_text(details, 16),
         "appid": pb_first(details, 5),
         "tags": [pb_text(pb_decode(t), 1) for t in details.get(52, [])],
+        "description": pb_text(details, 17),
     }
 
 
 def same_tags(a, b):
     return sorted(t.casefold() for t in a) == sorted(t.casefold() for t in b)
+
+
+def normalize_description(text):
+    # Steam stores descriptions with CRLF line endings and without trailing whitespace
+    return text.replace("\r\n", "\n").rstrip()
 
 
 def compute_tags(current, versions, add, remove):
@@ -498,42 +506,88 @@ def describe_change(old, new):
     return f"added [{', '.join(added)}], removed [{', '.join(removed)}]"
 
 
+def plan_changes(details, versions, add, remove, description):
+    """Returns the (tags, description) to send, each None when that part is already up to date."""
+    tags = compute_tags(details["tags"], versions, add, remove)
+    new_tags = None if same_tags(details["tags"], tags) else tags
+    new_description = None
+    if description is not None and normalize_description(details["description"]) != normalize_description(description):
+        new_description = normalize_description(description)
+    return new_tags, new_description
+
+
+def describe_changes(details, new_tags, new_description):
+    changes = []
+    if new_tags is not None:
+        changes.append(f"tags {describe_change(details['tags'], new_tags)}")
+    if new_description is not None:
+        old_length = len(normalize_description(details["description"]))
+        changes.append(f"description ({old_length} -> {len(new_description)} characters)")
+    return "; ".join(changes)
+
+
+def github_notice(title, message):
+    """Adds a notice to the workflow run's annotations when running in GitHub Actions."""
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        return
+
+    def escape(text):
+        return text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+
+    print(f"::notice title={escape(title).replace(':', '%3A').replace(',', '%2C')}::{escape(message)}")
+
+
 def check_item(details, item_id, appid):
     if details["appid"] is not None and int(details["appid"]) != appid:
         raise RuntimeError(f"Workshop item {item_id} belongs to app {details['appid']}, not {appid}.")
 
 
-def update_tags_in_session(cm, appid, item_id, transform, check_only):
+def update_item_in_session(cm, appid, item_id, plan, check_only):
     details = fetch_session_details(cm, item_id)
     check_item(details, item_id, appid)
-    current = details["tags"]
-    desired = transform(current)
+    title = details["title"]
+    new_tags, new_description = plan(details)
     if check_only:
-        print(f"Logged in to Steam. Tags on '{details['title']}': [{', '.join(current)}]")
-        if not same_tags(current, desired):
-            print(f"Tags would change: {describe_change(current, desired)}")
+        print(f"Logged in to Steam. Tags on '{title}': [{', '.join(details['tags'])}]")
+        if new_tags is not None or new_description is not None:
+            print(f"Would update {describe_changes(details, new_tags, new_description)}")
         return
-    if same_tags(current, desired):
-        print(f"Tags on '{details['title']}' are already up to date: [{', '.join(current)}]")
+    if new_tags is None and new_description is None:
+        print(f"'{title}' is already up to date.")
         return
 
-    request = pb_varint(1, appid) + pb_fixed64(2, item_id) + b"".join(pb_string(6, t) for t in desired)
+    # The tag list is always sent, because Steam replaces the item's tags with whatever list it gets
+    request = pb_varint(1, appid) + pb_fixed64(2, item_id)
+    if new_description is not None:
+        request += pb_string(4, new_description)
+    request += b"".join(pb_string(6, t) for t in (details["tags"] if new_tags is None else new_tags))
     cm.call("PublishedFile.Update#1", request)
 
     for attempt in range(VERIFY_ATTEMPTS):
-        actual = fetch_session_details(cm, item_id)["tags"]
-        if same_tags(actual, desired):
-            print(f"Updated tags on '{details['title']}': {describe_change(current, actual)}")
-            print(f"Tags are now: [{', '.join(actual)}]")
+        actual = fetch_session_details(cm, item_id)
+        tags_done = new_tags is None or same_tags(actual["tags"], new_tags)
+        description_done = new_description is None or normalize_description(actual["description"]) == new_description
+        if tags_done and description_done:
+            print(f"Updated '{title}': {describe_changes(details, new_tags, new_description)}")
+            print(f"Tags are now: [{', '.join(actual['tags'])}]")
+            if new_tags is not None:
+                github_notice(
+                    "Steam Workshop Tags Updated",
+                    f"Updated the tags on '{title}': {describe_change(details['tags'], actual['tags'])}. "
+                    f"Tags are now: [{', '.join(actual['tags'])}]",
+                )
             return
         if attempt + 1 < VERIFY_ATTEMPTS:
             time.sleep(VERIFY_DELAY)
-    raise RuntimeError(
-        f"Steam accepted the tag update, but reports [{', '.join(actual)}] instead of [{', '.join(desired)}]."
-    )
+    if not tags_done:
+        raise RuntimeError(
+            f"Steam accepted the update, but reports tags [{', '.join(actual['tags'])}] "
+            f"instead of [{', '.join(new_tags)}]."
+        )
+    raise RuntimeError("Steam accepted the update, but reports a description that differs from the one sent.")
 
 
-def update_tags(appid, item_id, transform, username, password, shared_secret, check_only=False):
+def update_item(appid, item_id, plan, username, password, shared_secret, check_only=False):
     endpoints = fetch_cm_endpoints()
     for attempt in range(SESSION_ATTEMPTS):
         endpoint = endpoints[attempt % len(endpoints)]
@@ -542,7 +596,7 @@ def update_tags(appid, item_id, transform, username, password, shared_secret, ch
             cm = CMConnection(endpoint)
             refresh_token, steamid = authenticate(cm, username, password, shared_secret)
             cm.logon(refresh_token, steamid, username)
-            update_tags_in_session(cm, appid, item_id, transform, check_only)
+            update_item_in_session(cm, appid, item_id, plan, check_only)
             cm.log_off()
             return
         except (*NETWORK_ERRORS, SteamError) as e:
@@ -566,7 +620,7 @@ def read_supported_versions(about_path):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Add, remove or sync the tags on a Steam Workshop item.",
+        description="Update the tags and description of a Steam Workshop item.",
         epilog="Credentials are read from STEAM_USERNAME, STEAM_PASSWORD and STEAM_TFASEED.",
     )
     parser.add_argument("item_id", type=int, help="the Workshop item's published file id")
@@ -578,40 +632,49 @@ def main():
     )
     parser.add_argument("--add", action="append", default=[], metavar="TAG", help="tag to add (repeatable)")
     parser.add_argument("--remove", action="append", default=[], metavar="TAG", help="tag to remove (repeatable)")
+    parser.add_argument(
+        "--description-from",
+        metavar="FILE",
+        help="make the item's description match this file (Steam markup, e.g. SteamDescription.txt)",
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--dry-run", action="store_true", help="show the change without logging in to Steam")
     mode.add_argument(
         "--check-login",
         action="store_true",
-        help="log in to Steam and read the item's tags without changing them; with tag options, show the change",
+        help="log in to Steam and read the item without changing it; with other options, show the change",
     )
     args = parser.parse_args()
 
-    if not (args.versions_from or args.add or args.remove or args.check_login):
-        parser.error("nothing to do; pass --versions-from, --add, --remove or --check-login")
+    if not (args.versions_from or args.add or args.remove or args.description_from or args.check_login):
+        parser.error("nothing to do; pass --versions-from, --add, --remove, --description-from or --check-login")
     conflicting = {t.casefold() for t in args.add} & {t.casefold() for t in args.remove}
     if conflicting:
         parser.error(f"tags both added and removed: {', '.join(sorted(conflicting))}")
 
     try:
         versions = read_supported_versions(args.versions_from) if args.versions_from else None
+        description = None
+        if args.description_from:
+            with open(args.description_from, encoding="utf-8") as f:
+                description = f.read()
 
-        def transform(current):
-            return compute_tags(current, versions, args.add, args.remove)
+        def plan(details):
+            return plan_changes(details, versions, args.add, args.remove, description)
 
         if not args.check_login:
             public = fetch_public_details(args.item_id)
             if public is None:
-                print(f"Workshop item {args.item_id} isn't publicly visible; its tags will be read after logging in.")
+                print(f"Workshop item {args.item_id} isn't publicly visible; it will be read after logging in.")
                 if args.dry_run:
                     return 0
             else:
                 check_item(public, args.item_id, args.appid)
-                desired = transform(public["tags"])
-                if same_tags(public["tags"], desired):
-                    print(f"Tags on '{public['title']}' are already up to date: [{', '.join(public['tags'])}]")
+                new_tags, new_description = plan(public)
+                if new_tags is None and new_description is None:
+                    print(f"'{public['title']}' is already up to date. Tags: [{', '.join(public['tags'])}]")
                     return 0
-                print(f"Tags on '{public['title']}' need updating: {describe_change(public['tags'], desired)}")
+                print(f"'{public['title']}' needs updating: {describe_changes(public, new_tags, new_description)}")
                 if args.dry_run:
                     return 0
 
@@ -619,17 +682,17 @@ def main():
         password = os.environ.get("STEAM_PASSWORD")
         if not username or not password:
             raise RuntimeError("STEAM_USERNAME and STEAM_PASSWORD must be set.")
-        update_tags(
+        update_item(
             args.appid,
             args.item_id,
-            transform,
+            plan,
             username,
             password,
             os.environ.get("STEAM_TFASEED"),
             check_only=args.check_login,
         )
         return 0
-    except (*NETWORK_ERRORS, RuntimeError, SteamError, ElementTree.ParseError) as e:
+    except (*NETWORK_ERRORS, RuntimeError, SteamError, ElementTree.ParseError, UnicodeDecodeError) as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 

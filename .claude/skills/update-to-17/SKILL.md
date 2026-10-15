@@ -28,7 +28,7 @@ description: "Add RimWorld 1.7 support to a mod project that already builds for 
 
 - **`LoadFolders.xml`**: add a `<v1.7>` block mirroring `<v1.6>` with `1.6` replaced by `1.7` (e.g. `<li>Common</li><li>1.7</li>`). Keep any `IfModActive` integration entries, with their paths pointing at the `1.7` folders. If a version-specific content folder (`1.6/Defs`, `1.6/Patches`, ...) holds tracked content, ask the user whether 1.7 should share it (list the `1.6` folder in the `v1.7` block) or get its own copy.
 - **`About/About.xml`**: add `<li>1.7</li>` to `<supportedVersions>`, after `1.6`.
-- **CI** (`.github/workflows/*.yml` calling `build_mod.yml`): add `1.7` to `rw_versions`.
+- **GitHub workflows** (`.github/workflows/*.yml`, typically `ci.yml` and `release.yml`): add `1.7` after `1.6` in every `rw_versions` list, both the `build_mod.yml` and the `release_mod.yml` jobs, so the lists match `<supportedVersions>`.
 - **Mod csproj**: NuGet packages that back-port BCL types to net48 (e.g. `System.Memory`) are part of .NET 10 and conflict with it; give them `Condition="'$(RimWorldVersion)' != '1.7'"`. Keep any comment on them accurate. Other packages (e.g. `Newtonsoft.Json`) stay.
 - **ILRepack**: a mod that ILRepacks its dependencies and has a test project needs `<ProduceReferenceAssembly>false</ProduceReferenceAssembly>` in the mod csproj, since on net10.0 a `ProjectReference` compiles against the reference assembly, which lacks the merged types.
 - **Test project** (if it uses DevTools; see `devtools.md`, "Project setup"). DevTools supports only 1.6 and 1.7, so the test project builds tests for exactly those two versions and stays an empty assembly for every other one:
@@ -74,4 +74,4 @@ Use the `decompiler-mcp` skill. Registered aliases (check with `list_contexts`; 
 
 - `csharpier format` the changed sources.
 - `.vscode/build.sh <version>` for every version in `About.xml` `<supportedVersions>`, now including 1.7. `touch` changed `.cs` files before rebuilding so warnings reappear. Every version: 0 errors. Every version except 1.7: 0 warnings. 1.7: only the warnings step 3 says to leave alone.
-- Summarize for the user: project-file changes, each 1.7 code branch and why, tests added, the number of 1.7-only warnings left alone (just the count), patches to confirm in game, and anything left for them (CI, shared-tooling issues). Leave running the game and the tests, and the commit, to the user.
+- Summarize for the user: project-file changes, each 1.7 code branch and why, tests added, the number of 1.7-only warnings left alone (just the count), patches to confirm in game, and anything left for them (e.g. shared-tooling issues). Leave running the game and the tests, and the commit, to the user.
