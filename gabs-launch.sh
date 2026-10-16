@@ -212,7 +212,8 @@ if [[ "$HAS_LOGFILE" == true ]]; then
     LOG_ARGS=(-logfile "$SAVE_DIR/Player.log")
 else
     CAPTURED_LOG="$SAVE_DIR/Player.log"
-    LOG_ARGS=()
+    # -NoFileLog (1.7+) keeps the game from writing its own Player.log into the main game directory.
+    LOG_ARGS=(-NoFileLog)
 fi
 
 # Runs on the host: joins Steam's sandbox (--parent-pid) the way Steam's own launches do, and, when
