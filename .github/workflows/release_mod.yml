@@ -264,12 +264,49 @@ jobs:
                     exit 1
                   fi
 
+            - name: Prepare Changelog for Steam
+              if: ${{ inputs.upload_to_steam && steps.published_file_id_check.outputs.exists == 'true' }}
+              id: steam_changelog
+              shell: bash
+              env:
+                  CHANGELOG_CONTENT: ${{ steps.changelog_reader.outputs.changes }}
+              run: |
+                  # steamdown turns inline code into a block-level [code] element, which
+                  # breaks the surrounding sentence onto separate lines on Steam. Steam has
+                  # no inline code, so it's emitted as [b]...[/b] instead, which steamdown
+                  # passes through as text. Markdown punctuation inside is backslash-escaped
+                  # so steamdown keeps it literal instead of parsing it (e.g. __result) or
+                  # autolinking it (e.g. http://localhost).
+                  prepared=$(python3 - <<'PY'
+                  import os
+                  import re
+
+                  text = os.environ["CHANGELOG_CONTENT"]
+
+
+                  def bold(m):
+                      escaped = re.sub(r"([\\`*_{}\[\]()#+\-.!|~<>:@])", r"\\\1", m.group(2))
+                      return f"[b]{escaped}[/b]"
+
+
+                  text = re.sub(r"(?<!`)(`+)(?!`)(.+?)(?<!`)\1(?!`)", bold, text)
+                  print(text)
+                  PY
+                  )
+
+                  delimiter="STEAM_CHANGELOG_$(openssl rand -hex 8)"
+                  {
+                    echo "markdown<<$delimiter"
+                    echo "$prepared"
+                    echo "$delimiter"
+                  } >> "$GITHUB_OUTPUT"
+
             - name: Converts Markdown to Steam markup
               if: ${{ inputs.upload_to_steam && steps.published_file_id_check.outputs.exists == 'true' }}
               id: markdown_steam
               uses: ilyvion/steamdown@main
               with:
-                  markdown: ${{ steps.changelog_reader.outputs.changes }}
+                  markdown: ${{ steps.steam_changelog.outputs.markdown }}
 
             - name: Fail if Steam markup contains a double quote
               if: ${{ inputs.upload_to_steam && steps.published_file_id_check.outputs.exists == 'true' }}
