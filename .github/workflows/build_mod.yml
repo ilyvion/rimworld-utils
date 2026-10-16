@@ -41,6 +41,11 @@ on:
                 description: "Base path for the Steam Workshop folder, used to resolve paths to the Steam Workshop folder in the project files"
                 default: "..\\..\\.deps\\refs"
                 required: false
+            bake_asset_packs:
+                type: boolean
+                description: "Bake the Assets.zip packs RimWorld 1.7+ loads textures and sounds from, when About/About.xml supports 1.7 or later"
+                default: true
+                required: false
         outputs:
             artifact_name:
                 description: "Name of the artifact uploaded"
@@ -116,6 +121,14 @@ jobs:
                     echo "EOF"
                   } >> "$GITHUB_OUTPUT"
 
+                  # Asset packs exist from RimWorld 1.7 on.
+                  newest=$(tail -n 1 <<< "$versions")
+                  if [ "$(printf '%s\n' 1.7 "$newest" | sort -V | head -n 1)" = "1.7" ]; then
+                    echo "has_asset_packs=true" >> "$GITHUB_OUTPUT"
+                  else
+                    echo "has_asset_packs=false" >> "$GITHUB_OUTPUT"
+                  fi
+
             - name: Build Mod
               shell: bash
               run: |
@@ -133,6 +146,21 @@ jobs:
             - name: Post-Build Mod Hook
               uses: ./.github/build_hooks/post_build_mod_hook
               if: ${{ hashFiles('./.github/build_hooks/post_build_mod_hook/action.yml') != '' }}
+
+            - name: Pre-Bake Asset Packs Hook
+              uses: ./.github/build_hooks/pre_bake_asset_packs_hook
+              if: ${{ inputs.bake_asset_packs && steps.supported_versions.outputs.has_asset_packs == 'true' && hashFiles('./.github/build_hooks/pre_bake_asset_packs_hook/action.yml') != '' }}
+
+            # Writes Assets.zip into every 1.7+ load folder that has Textures/ or Sounds/, as the
+            # game's -BakeModAssetPacks option and Workshop upload do.
+            - name: Bake Asset Packs
+              if: ${{ inputs.bake_asset_packs && steps.supported_versions.outputs.has_asset_packs == 'true' }}
+              shell: bash
+              run: dotnet run --project ../rimworld-utils/AssetPackBaker/AssetPackBaker.csproj --configuration Release -- .
+
+            - name: Post-Bake Asset Packs Hook
+              uses: ./.github/build_hooks/post_bake_asset_packs_hook
+              if: ${{ inputs.bake_asset_packs && steps.supported_versions.outputs.has_asset_packs == 'true' && hashFiles('./.github/build_hooks/post_bake_asset_packs_hook/action.yml') != '' }}
 
             - name: Pre-Generate Versions Directory List Hook
               uses: ./.github/build_hooks/pre_generate_versions_directory_list_hook
@@ -171,6 +199,7 @@ jobs:
                       CHANGELOG.md
                       LoadFolders.xml
                       !**/.*
+                      !**/Assets.zip.*
                       !About/*.pdn
                       !About/*.svg
                       !About/*.ttf
