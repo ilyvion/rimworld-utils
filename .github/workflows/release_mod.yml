@@ -53,7 +53,7 @@ jobs:
                   echo "no_prefix_version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
             - name: Checkout Repository
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
               with:
                   fetch-depth: 0
 
@@ -118,7 +118,7 @@ jobs:
               run: mkdir -p ${{ steps.variables.outputs.mod_path }}
 
             - name: Download Mod Artifacts from Build Step
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: ${{ inputs.artifact_name }}
                   path: ${{ steps.variables.outputs.mod_path }}
@@ -325,27 +325,21 @@ jobs:
 
             - name: Create Release
               if: ${{ inputs.create_release }}
-              id: create_release
-              uses: actions/create-release@v1
+              shell: bash
               env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              with:
-                  tag_name: ${{ steps.variables.outputs.version }}
-                  release_name: Release ${{ steps.variables.outputs.version }}
-                  body: ${{ steps.changelog_reader.outputs.changes }}
-                  draft: false
-                  prerelease: false
-
-            - name: Upload Release Asset
-              if: ${{ inputs.create_release }}
-              uses: actions/upload-release-asset@v1
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              with:
-                  upload_url: ${{ steps.create_release.outputs.upload_url }}
-                  asset_path: ${{ steps.variables.outputs.mod_path }}.zip
-                  asset_name: ${{ inputs.mod_name }}-${{ steps.variables.outputs.version }}.zip
-                  asset_content_type: application/zip
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  TAG_NAME: ${{ steps.variables.outputs.version }}
+                  RELEASE_NOTES: ${{ steps.changelog_reader.outputs.changes }}
+                  ASSET_PATH: ${{ steps.variables.outputs.mod_path }}.zip
+                  ASSET_NAME: ${{ inputs.mod_name }}-${{ steps.variables.outputs.version }}.zip
+              run: |
+                  asset_dir=$(mktemp -d)
+                  cp "$ASSET_PATH" "$asset_dir/$ASSET_NAME"
+                  gh release create "$TAG_NAME" "$asset_dir/$ASSET_NAME" \
+                    --repo "${{ github.repository }}" \
+                    --verify-tag \
+                    --title "Release $TAG_NAME" \
+                    --notes "$RELEASE_NOTES"
 
             - name: Get Mod Item ID
               if: ${{ inputs.upload_to_steam && steps.published_file_id_check.outputs.exists == 'true' }}
@@ -369,7 +363,7 @@ jobs:
 
             - name: Checkout rimworld-utils Repository
               if: ${{ inputs.upload_to_steam && steps.published_file_id_check.outputs.exists == 'true' }}
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
               with:
                   repository: "ilyvion/rimworld-utils"
                   path: "rimworld-utils"

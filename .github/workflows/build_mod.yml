@@ -56,10 +56,10 @@ jobs:
               run: echo "::warning title=Deprecated Input::The rw_versions input is deprecated and ignored; the versions to build for are read from About/About.xml's <supportedVersions>. Remove rw_versions from the calling workflow."
 
             - name: Checkout Repository
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
 
             - name: Checkout rimworld-utils Repository
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
               with:
                   repository: "ilyvion/rimworld-utils"
                   path: "rimworld-utils"
@@ -77,7 +77,7 @@ jobs:
               if: ${{ hashFiles('./.github/build_hooks/pre_setup_dotnet_hook/action.yml') != '' }}
 
             - name: Setup Dotnet
-              uses: actions/setup-dotnet@v4
+              uses: actions/setup-dotnet@v6
               with:
                   dotnet-version: 10.0.x
 
@@ -158,7 +158,7 @@ jobs:
               if: ${{ hashFiles('./.github/build_hooks/pre_upload_mod_artifacts_hook/action.yml') != '' }}
 
             - name: Upload Mod Artifacts
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: ${{ inputs.mod_name }}-${{ inputs.artifact_suffix }}
                   path: |
