@@ -10,8 +10,8 @@ on:
                 required: true
             rw_versions:
                 type: "string"
-                description: "RimWorld versions to build for, separated by space (e.g., '1.5 1.6 1.7')"
-                required: true
+                description: "Deprecated and ignored; the versions to build for are read from About/About.xml's <supportedVersions>"
+                required: false
             artifact_suffix:
                 required: true
                 description: "Suffix for the artifact name (e.g., 'Release' or '$ {{ github.sha }}')"
@@ -50,6 +50,11 @@ jobs:
     build:
         runs-on: ubuntu-latest
         steps:
+            - name: Warn About Deprecated rw_versions Input
+              if: ${{ inputs.rw_versions != '' }}
+              shell: bash
+              run: echo "::warning title=Deprecated Input::The rw_versions input is deprecated and ignored; the versions to build for are read from About/About.xml's <supportedVersions>. Remove rw_versions from the calling workflow."
+
             - name: Checkout Repository
               uses: actions/checkout@v4
 
@@ -84,10 +89,37 @@ jobs:
               uses: ./.github/build_hooks/pre_build_mod_hook
               if: ${{ hashFiles('./.github/build_hooks/pre_build_mod_hook/action.yml') != '' }}
 
+            - name: Read Supported Versions
+              id: supported_versions
+              shell: bash
+              run: |
+                  versions=$(python3 - <<'PY'
+                  import xml.etree.ElementTree as ET
+
+                  root = ET.parse("About/About.xml").getroot()
+                  for li in root.findall("./supportedVersions/li"):
+                      if li.text and li.text.strip():
+                          print(li.text.strip())
+                  PY
+                  )
+
+                  if [ -z "$versions" ]; then
+                    echo "::error file=About/About.xml,title=No Supported Versions::About/About.xml has no <supportedVersions> entries."
+                    exit 1
+                  fi
+
+                  versions=$(sort -V <<< "$versions")
+                  echo "Supported RimWorld versions: $(tr '\n' ' ' <<< "$versions")"
+                  {
+                    echo "versions<<EOF"
+                    echo "$versions"
+                    echo "EOF"
+                  } >> "$GITHUB_OUTPUT"
+
             - name: Build Mod
               shell: bash
               run: |
-                  mapfile -t rw_versions <<< "${{ inputs.rw_versions }}"
+                  mapfile -t rw_versions <<< "${{ steps.supported_versions.outputs.versions }}"
                   for rw_version in "${rw_versions[@]}"; do
                     echo "Building for RimWorld version: $rw_version"
                     dotnet build \
@@ -110,7 +142,7 @@ jobs:
               id: directory_list
               shell: bash
               run: |
-                  mapfile -t rw_versions <<< "${{ inputs.rw_versions }}"
+                  mapfile -t rw_versions <<< "${{ steps.supported_versions.outputs.versions }}"
                   {
                     echo "mod_folders<<EOF"
                     printf "%s\n" "${rw_versions[@]}"

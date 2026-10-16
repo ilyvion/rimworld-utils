@@ -16,8 +16,8 @@ on:
                 required: true
             rw_versions:
                 type: "string"
-                description: "RimWorld versions to build for, separated by space (e.g., '1.5 1.6 1.7')"
-                required: true
+                description: "Deprecated and ignored; the supported versions are read from About/About.xml's <supportedVersions>"
+                required: false
             solution_configuration:
                 type: "string"
                 description: "Solution configuration to build"
@@ -39,6 +39,11 @@ jobs:
         name: Release
         runs-on: ubuntu-latest
         steps:
+            - name: Warn About Deprecated rw_versions Input
+              if: ${{ inputs.rw_versions != '' }}
+              shell: bash
+              run: echo "::warning title=Deprecated Input::The rw_versions input is deprecated and ignored; the supported versions are read from About/About.xml's <supportedVersions>. Remove rw_versions from the calling workflow."
+
             - name: Generate Variables
               id: variables
               shell: bash
