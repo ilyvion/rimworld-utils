@@ -152,6 +152,8 @@ if [[ "$RUNNING_TESTS" == true ]]; then
         PACKAGE_ID="$(sed -n 's:.*<packageId>\(.*\)</packageId>.*:\1:p' "$PROJECT_DIR/About/About.xml" | head -1)"
         FORWARDED_ARGS=(--pid "$PACKAGE_ID" "${FORWARDED_ARGS[@]}")
     fi
+    # -NoWindow (headless-style launch) exists in 1.7+; 1.6 and earlier are not known to support it.
+    [[ "$HAS_LOGFILE" == false ]] && FORWARDED_ARGS+=(-NoWindow)
     TARGET="${TARGET:-$STEAM_COMMON/RimWorld/Mods/$MOD_NAME}"
     # build.sh empties the mod folder, so the config is written after it. Test.log is truncated
     # by DevTools at the start of each run; remove it too so a stale one can't be read.
