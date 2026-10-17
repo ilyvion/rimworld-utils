@@ -29,7 +29,7 @@ description: "Add RimWorld 1.7 support to a mod project that already builds for 
 ## 2. Project files
 
 - **`LoadFolders.xml`**: add a `<v1.7>` block mirroring `<v1.6>` with `1.6` replaced by `1.7` (e.g. `<li>Common</li><li>1.7</li>`). Keep any `IfModActive` integration entries, with their paths pointing at the `1.7` folders, including ones for mods without a 1.7 build (the fallback builds their integration against 1.6, which is what the game loads for them on 1.7). If a version-specific content folder (`1.6/Defs`, `1.6/Patches`, ...) holds tracked content, ask the user whether 1.7 should share it (list the `1.6` folder in the `v1.7` block) or get its own copy.
-- **`About/About.xml`**: add `<li>1.7</li>` to `<supportedVersions>`, after `1.6`.
+- **`About/About.xml`**: add `<li>1.7</li>` to `<supportedVersions>` next to `1.6`, following the list's existing order (first in a newest-first list).
 - **GitHub workflows** (`.github/workflows/*.yml`): the shared `build_mod.yml` reads its versions from `<supportedVersions>`, so no change is needed. If they still pass a `rw_versions` list, delete it; the input is ignored.
 - **Mod csproj**: NuGet packages that back-port BCL types to net48 (e.g. `System.Memory`) are part of .NET 10 and conflict with it; give them `Condition="'$(RimWorldVersion)' != '1.7'"`. Keep any comment on them accurate. Other packages (e.g. `Newtonsoft.Json`) stay.
 - **Test projects** (every one that uses DevTools, including integration test projects; see `devtools.md`, "Project setup"). DevTools supports only 1.6 and 1.7, so the test project builds tests for exactly those two versions and stays an empty assembly for every other one:
@@ -37,6 +37,30 @@ description: "Add RimWorld 1.7 support to a mod project that already builds for 
     - Keep the `<Compile Remove="**/*.cs" />` group and the `CS0436` `NoWarn` group; pre-1.6 builds need them. Change their conditions from `'$(RimWorldVersion)' != '1.6'` to `'$(RimWorldVersion)' != '1.6' And '$(RimWorldVersion)' != '1.7'`.
     - Remove any `Lib.Harmony.Ref` `ExcludeAssets="all"` reference; DevTools keeps its Harmony reference private.
     - Update the csproj comments to match (no history narration).
+- **Project docs**: update mentions of the supported versions, of tests existing only on 1.6, and of `1.6`-specific paths such as `.savedatafolder/1.6/Test.log` in the repo's own `CLAUDE.md`. `gabs-launch.sh` runs 1.7 unless the `rimworldVersion` launch input says otherwise.
+- **Laboratory `VersionCheckDef`**: a mod with `<UseLaboratory>true</UseLaboratory>` needs ilyvion's Laboratory 0.25 or newer, the first release with 1.7 support. Set `majorVersion`/`minorVersion` in its `ilyvion.Laboratory.VersionCheckDef` (usually `Common/Defs/VersionCheck.xml`) to `0`/`25` if they're lower. If the mod has none, create one in a `Defs` folder that every version loads:
+
+    ```xml
+    <?xml version="1.0" encoding="utf-8"?>
+    <Defs>
+        <ilyvion.Laboratory.VersionCheckDef>
+            <defName>ModName_VersionCheck</defName>
+            <modName>Mod Name</modName>
+            <majorVersion>0</majorVersion>
+            <minorVersion>25</minorVersion>
+        </ilyvion.Laboratory.VersionCheckDef>
+    </Defs>
+    ```
+- **`CHANGELOG.md`**: under `## [Unreleased]`, add `- Support for RimWorld 1.7.` to its `### Added` section (create it if missing). If the mod uses Laboratory, put a `### Dependencies` section above it, naming v0.25.1 (0.25.0 shipped without its `1.7` folder), as in DebugAssistance's `0.4.0`:
+
+    ```markdown
+    ### Dependencies
+
+    - ilyvion's Laboratory: v0.25.1
+
+    > [!IMPORTANT]  
+    > This release requires an update to ilyvion's Laboratory!
+    ```
 
 ## 3. Code: version conditions
 
@@ -53,7 +77,7 @@ Fix compile errors first (they're listed by the step-1 1.7 build), then go throu
 ### Runtime differences (compile fine, break in game)
 
 - **Patch parameter names**: Harmony binds patch method parameters to the target's parameters by name, so a target whose parameters were renamed on 1.7 breaks the patch at patch time even when the types match. Rename the patch's parameters to match under `#if`.
-- **Inlining**: the CoreCLR JIT inlines small private methods into their callers, so a patch on such a method can silently never run. Patch a public or virtual entry point instead, and list every patch on a small method for the user to confirm in game.
+- **Inlining**: the CoreCLR JIT inlines small non-virtual methods (public or private) into their callers, so a patch on such a method can silently never run. Patch a virtual or larger entry point instead where one exists. `Assembly-CSharp` is plain IL, not ReadyToRun, and Harmony 3 marks each method it patches as not inlinable, so only callers JIT-compiled before the patch keep an inlined copy; for a patch applied from the `Mod` constructor that's mostly game startup code. List every patch on a small method for the user to confirm in game, and add a 1.7 test (step 4) that calls a vanilla *caller* of the patched method, not the method itself.
 - **A patch whose target is no longer called on 1.7**: add `private static bool Prepare() => false;` under `#if v1_7_OR_GREATER` (Harmony then skips it) and capture the behaviour elsewhere; don't leave a dead patch applied.
 - **Assembly names**: code that looks up assemblies by name needs the 1.7 names: `UnityEngine*` types are in `UnityStubs`, not `UnityEngine.CoreModule`; the engine is `Waylith*`. `mscorlib` is `System.Private.CoreLib`.
 - **Stricter type loading**: CoreCLR rejects invalid types at `Assembly.GetTypes()` time that Mono loaded, so code scanning a broken assembly sees fewer types.
@@ -65,10 +89,14 @@ Things that are **not** 1.7-specific don't belong in this port: if the reference
 
 Use the `decompiler-mcp` skill. Registered aliases (check with `list_contexts`; if one is missing, load the 1.6 assemblies from `Game Assemblies/1.6/` in `rimworld-utils` and the 1.7 ones from the game root (see CLAUDE.md's "RimWorld game installation"), and ask the user about anything else rather than searching for the DLLs): `rw16`/`rw17` (Assembly-CSharp), `unitystubs17`, `waylith17`, `corelib17` (System.Private.CoreLib), `harmony3rc2` (Lib.Harmony 3.0.0-rc.2 from the NuGet cache). `compare_contexts` with `namespaceFilter` (e.g. `rw16` vs `rw17`, `namespaceFilter: "Verse"`) lists changed types; `compare_symbols` diffs one member. For every game/BCL method the mod patches, confirm it still exists on 1.7 with the same signature and parameter names, and check its callers (`find_callers`) to confirm it's still on the path the mod expects.
 
+- List the targets with `grep` for `[HarmonyPatch`, `TargetMethod`, `TargetMethods` and `AccessTools.Method` in the mod's sources, then `compare_symbols` each declaring type (`rw16` vs `rw17`). A type result of `leftExists: false, rightExists: false` means the namespace is wrong (e.g. `FloatMenuUtility` is in `RimWorld`, not `Verse`); find it with `search_members`.
+- A type-level `compare_symbols` only diffs member signatures. For every transpiler target, also run `compareMode: "body"` on the method.
+- `compare_contexts` can fail with `An item with the same key has already been added` (e.g. `namespaceFilter: "Verse"`, or `deep: true`); fall back to per-type `compare_symbols`.
+
 ## 4. Tests
 
 - Tests whose expectations legitimately differ on 1.7 get `#if v1_7_OR_GREATER ... #else ... #endif` around the whole test or the differing expectation, with a one-line comment saying why (e.g. a type count that drops because CoreCLR rejects a broken fixture type).
-- Add a regression test, under `#if v1_7_OR_GREATER`, for each runtime difference you fixed in step 3 (e.g. a re-targeted patch that now runs). These need the real game, so they're DevTools `MainMenu` tests that call the real code path, with `[ErrorsAllowed(...)]` for expected log output.
+- Add a regression test, under `#if v1_7_OR_GREATER`, for each runtime difference you fixed in step 3 (e.g. a re-targeted patch that now runs) and for each patch on a small method (through a vanilla caller). These need the real game, so they're DevTools tests (`MainMenu`, or `Playing` when they need a map; put them in the fixture that already covers that patch) that call the real code path, with `[ErrorsAllowed(...)]` for expected log output.
 - Shared test helpers with per-version bodies go in the test project root.
 
 ## 5. Verify
