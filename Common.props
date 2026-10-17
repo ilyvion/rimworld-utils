@@ -19,6 +19,8 @@
         <ErrorReport>prompt</ErrorReport>
         <WarningLevel>9999</WarningLevel>
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+        <!-- Test projects publicize private members of, and use types ILRepacked into, the projects they reference; a reference assembly has neither. -->
+        <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
     </PropertyGroup>
     <Choose>
         <When Condition="'$(RimWorldVersion)' == '1.7'">

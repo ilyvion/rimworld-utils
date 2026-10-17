@@ -17,7 +17,7 @@ description: "Add RimWorld 1.7 support to a mod project that already builds for 
 
 ## What the shared tooling already does
 
-`Common.props` handles 1.7 when `RimWorldVersion` is `1.7` (its default): `net10.0`, the `v1_7;v1_7_OR_GREATER;v1_6_OR_GREATER;...` defines, `CopyLocalLockFileAssemblies`, `Krafs.Rimworld.Ref 1.7.*-*` and `Lib.Harmony 3.0.*-*` (no `PolySharp` on 1.7). `.vscode/build.sh 1.7`, `gabs-launch.sh` (`rimworldVersion` launch input) and DevTools all support 1.7. Don't re-implement any of this in the mod; if something there is missing or wrong, tell the user, since it's shared across every mod.
+`Common.props` handles 1.7 when `RimWorldVersion` is `1.7` (its default): `net10.0`, the `v1_7;v1_7_OR_GREATER;v1_6_OR_GREATER;...` defines, `CopyLocalLockFileAssemblies`, `ProduceReferenceAssembly` off (so test projects can publicize, and see types ILRepacked into, the projects they reference), `Krafs.Rimworld.Ref 1.7.*-*` and `Lib.Harmony 3.0.*-*` (no `PolySharp` on 1.7). `.vscode/build.sh 1.7`, `gabs-launch.sh` (`rimworldVersion` launch input) and DevTools all support 1.7. Don't re-implement any of this in the mod; if something there is missing or wrong, tell the user, since it's shared across every mod.
 
 ## 1. Baseline
 
@@ -30,7 +30,6 @@ description: "Add RimWorld 1.7 support to a mod project that already builds for 
 - **`About/About.xml`**: add `<li>1.7</li>` to `<supportedVersions>`, after `1.6`.
 - **GitHub workflows** (`.github/workflows/*.yml`): the shared `build_mod.yml` reads its versions from `<supportedVersions>`, so no change is needed. If they still pass a `rw_versions` list, delete it; the input is ignored.
 - **Mod csproj**: NuGet packages that back-port BCL types to net48 (e.g. `System.Memory`) are part of .NET 10 and conflict with it; give them `Condition="'$(RimWorldVersion)' != '1.7'"`. Keep any comment on them accurate. Other packages (e.g. `Newtonsoft.Json`) stay.
-- **ILRepack**: a mod that ILRepacks its dependencies and has a test project needs `<ProduceReferenceAssembly>false</ProduceReferenceAssembly>` in the mod csproj, since on net10.0 a `ProjectReference` compiles against the reference assembly, which lacks the merged types.
 - **Test project** (if it uses DevTools; see `devtools.md`, "Project setup"). DevTools supports only 1.6 and 1.7, so the test project builds tests for exactly those two versions and stays an empty assembly for every other one:
     - The DevTools `ProjectReference`'s `ItemGroup` condition becomes `'$(RimWorldVersion)' == '1.6' Or '$(RimWorldVersion)' == '1.7'`, and the reference gets `AdditionalProperties="RimWorldVersion=$(RimWorldVersion);OutDir=$(MSBuildThisFileDirectory)..\..\$(RimWorldVersion)\Assemblies\"`.
     - Keep the `<Compile Remove="**/*.cs" />` group and the `CS0436` `NoWarn` group; pre-1.6 builds need them. Change their conditions from `'$(RimWorldVersion)' != '1.6'` to `'$(RimWorldVersion)' != '1.6' And '$(RimWorldVersion)' != '1.7'`.
