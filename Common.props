@@ -57,6 +57,8 @@
                 <DefineConstants>$(DefineConstants);v1_7;v1_7_OR_GREATER;v1_6_OR_GREATER;v1_5_OR_GREATER;v1_4_OR_GREATER;v1_3_OR_GREATER</DefineConstants>
                 <!-- .NET (Core) class libraries don't copy NuGet dependencies to the output by default, but we want that -->
                 <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+                <!-- Version folder a Reference HintPath falls back to (see Common.targets) -->
+                <RimWorldFallbackVersion Condition="'$(RimWorldFallbackVersion)'==''">1.6</RimWorldFallbackVersion>
             </PropertyGroup>
         </When>
         <When Condition="'$(RimWorldVersion)' == '1.6'">

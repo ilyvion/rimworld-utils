@@ -79,6 +79,35 @@
         <Delete Files="@(TextTemplate -&gt; '%(OutputPath)')" />
         <RemoveDir Directories="$(T4OutputDir)" Condition="Exists('$(T4OutputDir)')" />
     </Target>
+    <!--
+        A Reference whose HintPath goes through a $(RimWorldVersion) folder that doesn't exist
+        (another mod with no build for this version) resolves from its
+        $(RimWorldFallbackVersion) folder instead.
+    -->
+    <Target
+        Name="FallBackToPreviousRimWorldVersionReferences"
+        BeforeTargets="ResolveAssemblyReferences"
+        Condition="'$(RimWorldFallbackVersion)' != ''"
+    >
+        <ItemGroup>
+            <Reference
+                Condition="'%(Reference.HintPath)' != '' And !Exists('%(Reference.HintPath)')"
+            >
+                <RimWorldFallbackHintPath
+                    >$([System.String]::Copy('%(Reference.HintPath)').Replace('\$(RimWorldVersion)\', '\$(RimWorldFallbackVersion)\').Replace('/$(RimWorldVersion)/', '/$(RimWorldFallbackVersion)/'))</RimWorldFallbackHintPath>
+            </Reference>
+            <Reference
+                Condition="'%(Reference.RimWorldFallbackHintPath)' != '' And Exists('%(Reference.RimWorldFallbackHintPath)')"
+            >
+                <HintPath>%(Reference.RimWorldFallbackHintPath)</HintPath>
+            </Reference>
+        </ItemGroup>
+        <Message
+            Importance="High"
+            Text="%(Reference.Identity): no RimWorld $(RimWorldVersion) build, using $(RimWorldFallbackVersion) (%(Reference.HintPath))"
+            Condition="'%(Reference.RimWorldFallbackHintPath)' == '%(Reference.HintPath)' And Exists('%(Reference.HintPath)')"
+        />
+    </Target>
     <PropertyGroup
         Condition="
             '$(SupportedRimWorldVersions)' != '' And
