@@ -35,4 +35,6 @@ Keep the existing tone and structure where they still work, and avoid adding inf
 
 If more than one document is in scope, also check them against each other for consistency — same facts, no contradictions — even where wording or level of detail reasonably differs between them (e.g. `SteamDescription.txt` is typically terser than `README.md`).
 
+`SteamDescription.txt` must not mention which RimWorld versions the mod supports at all. Remove any such mention you find there, and don't copy one over from another document.
+
 If anything needs clarification, or there are multiple reasonable ways to resolve an inconsistency, use the AskUserQuestion tool rather than assuming.
