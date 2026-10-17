@@ -73,27 +73,6 @@ jobs:
               shell: bash
               run: mv rimworld-utils ..
 
-            - name: Post-Checkout Repository Hook
-              uses: ./.github/build_hooks/post_checkout_hook
-              if: ${{ hashFiles('./.github/build_hooks/post_checkout_hook/action.yml') != '' }}
-
-            - name: Pre-Setup Dotnet Hook
-              uses: ./.github/build_hooks/pre_setup_dotnet_hook
-              if: ${{ hashFiles('./.github/build_hooks/pre_setup_dotnet_hook/action.yml') != '' }}
-
-            - name: Setup Dotnet
-              uses: actions/setup-dotnet@v6
-              with:
-                  dotnet-version: 10.0.x
-
-            - name: Post-Setup Dotnet Hook
-              uses: ./.github/build_hooks/post_setup_dotnet_hook
-              if: ${{ hashFiles('./.github/build_hooks/post_setup_dotnet_hook/action.yml') != '' }}
-
-            - name: Pre-Build Mod Hook
-              uses: ./.github/build_hooks/pre_build_mod_hook
-              if: ${{ hashFiles('./.github/build_hooks/pre_build_mod_hook/action.yml') != '' }}
-
             - name: Read Supported Versions
               id: supported_versions
               shell: bash
@@ -128,6 +107,84 @@ jobs:
                   else
                     echo "has_asset_packs=false" >> "$GITHUB_OUTPUT"
                   fi
+
+            - name: Post-Checkout Repository Hook
+              uses: ./.github/build_hooks/post_checkout_hook
+              if: ${{ hashFiles('./.github/build_hooks/post_checkout_hook/action.yml') != '' }}
+
+            - name: Pre-Setup Dotnet Hook
+              uses: ./.github/build_hooks/pre_setup_dotnet_hook
+              if: ${{ hashFiles('./.github/build_hooks/pre_setup_dotnet_hook/action.yml') != '' }}
+
+            - name: Setup Dotnet
+              uses: actions/setup-dotnet@v6
+              with:
+                  dotnet-version: 10.0.x
+
+            # Asks MSBuild which projects the solution builds with UseLaboratory, for every
+            # supported version, and where their ilyvion.Laboratory project reference points.
+            - name: Find ilyvion.Laboratory Location
+              id: laboratory
+              shell: bash
+              run: |
+                  references_file=$(mktemp)
+                  mapfile -t rw_versions <<< "${{ steps.supported_versions.outputs.versions }}"
+                  for rw_version in "${rw_versions[@]}"; do
+                    dotnet msbuild \
+                    -nologo \
+                    -verbosity:quiet \
+                    -target:ReportLaboratoryReferences \
+                    --property "CustomAfterMicrosoftCommonTargets=$(realpath ../rimworld-utils/LaboratoryReferences.targets)" \
+                    --property "LaboratoryReferencesFile=$references_file" \
+                    --property "RimWorldVersion=$rw_version"\
+                    --property "ProjectDependenciesBasePath=${{ inputs.project_dependencies_base_path }}"\
+                    --property "RimWorldSteamWorkshopFolderPath=${{ inputs.steam_workshop_folder_path }}"\
+                    --property "Configuration=${{ inputs.solution_configuration }}" \
+                    "${{ inputs.mod_name }}.sln"
+                  done
+
+                  # <repo>/Source/ilyvion.Laboratory/ilyvion.Laboratory.csproj -> <repo>
+                  locations=$(sort -u "$references_file" | while read -r reference; do
+                    if [ ! -e "$reference" ]; then
+                      dirname "$(dirname "$(dirname "$reference")")"
+                    fi
+                  done | sort -u)
+
+                  if [ -z "$locations" ]; then
+                    echo "No missing ilyvion.Laboratory references; skipping its checkout."
+                    exit 0
+                  fi
+                  if [ "$(wc -l <<< "$locations")" -gt 1 ]; then
+                    echo "::error title=Conflicting ilyvion.Laboratory Locations::Projects expect ilyvion.Laboratory in more than one location: $(tr '\n' ' ' <<< "$locations")"
+                    exit 1
+                  fi
+
+                  echo "ilyvion.Laboratory is expected at $locations"
+                  echo "path=$locations" >> "$GITHUB_OUTPUT"
+
+            - name: Checkout ilyvion.Laboratory Repository
+              if: ${{ steps.laboratory.outputs.path != '' }}
+              uses: actions/checkout@v7
+              with:
+                  repository: "ilyvion/ilyvion-laboratory"
+                  path: "ilyvion.Laboratory"
+
+            - name: Move ilyvion.Laboratory to where it's expected
+              if: ${{ steps.laboratory.outputs.path != '' }}
+              shell: bash
+              env:
+                  LABORATORY_PATH: ${{ steps.laboratory.outputs.path }}
+              run: |
+                  mkdir -p "$(dirname "$LABORATORY_PATH")"
+                  mv ilyvion.Laboratory "$LABORATORY_PATH"
+
+            - name: Post-Setup Dotnet Hook
+              uses: ./.github/build_hooks/post_setup_dotnet_hook
+              if: ${{ hashFiles('./.github/build_hooks/post_setup_dotnet_hook/action.yml') != '' }}
+
+            - name: Pre-Build Mod Hook
+              uses: ./.github/build_hooks/pre_build_mod_hook
+              if: ${{ hashFiles('./.github/build_hooks/pre_build_mod_hook/action.yml') != '' }}
 
             - name: Build Mod
               shell: bash

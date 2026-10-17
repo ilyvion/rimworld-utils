@@ -1,0 +1,24 @@
+<Project>
+    <!--
+        Injected into every project via CustomAfterMicrosoftCommonTargets by build_mod.yml. Each
+        project that compiles with UseLaboratory appends the full path of its ilyvion.Laboratory
+        project reference to $(LaboratoryReferencesFile).
+    -->
+    <Target Name="ReportLaboratoryReferences">
+        <Error
+            Condition="'$(LaboratoryReferencesFile)'==''"
+            Text="LaboratoryReferencesFile must be set to the file to append ilyvion.Laboratory references to."
+        />
+        <ItemGroup Condition="'$(UseLaboratory)'=='true'">
+            <_LaboratoryReference
+                Include="@(ProjectReference->'%(FullPath)')"
+                Condition="'%(Filename)'=='ilyvion.Laboratory'"
+            />
+        </ItemGroup>
+        <WriteLinesToFile
+            File="$(LaboratoryReferencesFile)"
+            Lines="@(_LaboratoryReference)"
+            Overwrite="false"
+        />
+    </Target>
+</Project>
