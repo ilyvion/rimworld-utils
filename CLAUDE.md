@@ -30,6 +30,14 @@ This rewrites the referenced assembly's access modifiers to public at compile ti
 
 Reflection is still the right tool for members that don't exist at compile time at all (e.g. truly dynamic/reflection-based APIs), but not as a workaround for accessibility.
 
+## Other mods' reference assemblies (`.deps/`)
+
+Integration projects reference another mod's assembly through `$(RimWorldSteamWorkshopFolderPath)\<workshop id>\$(RimWorldVersion)\Assemblies\<Name>.dll`. Locally and in CI that path is the repo's `.deps/refs`, which holds reference assemblies (made by refasmer) of the installed mods:
+
+- `.deps/originals_config.sh` lists the workshop ids; `.deps/link_originals.sh` symlinks them into `.deps/originals/` and keeps `.deps/README.md` in sync; `.deps/generate_refs.sh` deletes and rebuilds `.deps/refs` from every DLL under `.deps/originals/`.
+- The repo's `/**/Assemblies` ignore rule matches `.deps/refs`, so its tracked files were force-added. After regenerating, `git add -f` each new DLL a project's `Reference` points at (e.g. `.deps/refs/3020706506/1.7/Assemblies/DynamicTradeInterface.dll`); otherwise CI can't find it. Add only those: the tracked set leaves out the other DLLs and version folders refasmer produces, and new untracked folders it creates (other versions, `Source/` builds) get deleted.
+- A `Reference` whose `$(RimWorldVersion)` folder doesn't exist resolves from `$(RimWorldFallbackVersion)` (`1.6` on 1.7 builds, see `Common.targets`), so a mod with no build for the newest version is compiled against its previous one.
+
 ## Global usings — why files don't `using Verse;`/`using RimWorld;`/`using UnityEngine;`
 
 Every project in this repo family imports `../rimworld-utils/Common.props`, which compiles in `../rimworld-utils/globalusings.cs` (via a `<Compile Include>` item — not a project-local `GlobalUsings.cs`, and not the same thing as the generated `obj/**/*.GlobalUsings.g.cs` files that `ImplicitUsings` produces, which only cover base `System.*` namespaces and are a red herring here). `globalusings.cs` declares `global using` for `System.Collections`, `System.Globalization`, `System.Reflection`, `System.Runtime.CompilerServices`, `HarmonyLib`, `RimWorld`, `UnityEngine`, and `Verse` (plus `ilyvion.Laboratory`/`ilyvion.Laboratory.Coroutines`/a `Coroutine` alias when `USE_LABORATORY` is defined). That's why any `.cs` file in these mods can reference types like `Dialog_Confirm`, `Find`, `Widgets`, `Rect`, etc. with no explicit `using` statement.
