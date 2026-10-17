@@ -73,18 +73,20 @@ jobs:
 
                   previous_tag=$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null || true)
 
+                  # A first release counts as changed, since the Steam Workshop description may not match the file yet.
                   if [ -z "$previous_tag" ]; then
-                    echo "No previous release tag found; skipping Steam description change check."
+                    reason="this is the first release"
+                  elif ! git diff --quiet "$previous_tag" "$CURRENT_TAG" -- SteamDescription.txt; then
+                    reason="SteamDescription.txt has changed since the last release ($previous_tag)"
+                  else
                     exit 0
                   fi
 
-                  if ! git diff --quiet "$previous_tag" "$CURRENT_TAG" -- SteamDescription.txt; then
-                    echo "changed=true" >> "$GITHUB_OUTPUT"
-                    if [ "$UPLOAD_TO_STEAM" = "true" ]; then
-                      echo "::notice file=SteamDescription.txt,title=Steam Description Changed::SteamDescription.txt has changed since the last release ($previous_tag). The Steam Workshop description will be updated after the upload."
-                    else
-                      echo "::notice file=SteamDescription.txt,title=Steam Description Changed::SteamDescription.txt has changed since the last release ($previous_tag). Remember to update the Steam Workshop description after this release."
-                    fi
+                  echo "changed=true" >> "$GITHUB_OUTPUT"
+                  if [ "$UPLOAD_TO_STEAM" = "true" ]; then
+                    echo "::notice file=SteamDescription.txt,title=Steam Description Changed::${reason^}. The Steam Workshop description will be updated after the upload."
+                  else
+                    echo "::notice file=SteamDescription.txt,title=Steam Description Changed::${reason^}. Remember to update the Steam Workshop description after this release."
                   fi
 
             - name: Verify Release Tag Is Signed
