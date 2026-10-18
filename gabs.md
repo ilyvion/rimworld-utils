@@ -4,6 +4,15 @@ RimBridgeServer (the in-game GABP bridge) can be driven by an MCP client through
 
 The procedure below is for projects using **RimTest Redux** (the `<ModName>.Tests` project references `RimTestRedux.csproj`). For projects using **DevTools** (it references `DevTools.csproj`), skip to [Running the tests with DevTools](#running-the-tests-with-devtools).
 
+## Never delete, truncate, move or rename `Player.log` or `Test.log`
+
+**No log cleanup step exists in either procedure. Do not add one.** Launch the game with the old logs left exactly where they are; no `rm`, `> file`, `truncate`, `mv` or backup copy, before or after a run.
+
+- `Player.log`: overwritten at every launch, by RimWorld's `-logfile` on 1.6 and earlier and by `gabs-launch.sh`'s output redirect on 1.7.
+- `Test.log`: `gabs-launch.sh` deletes it before launching the game.
+
+So a stale end marker from a previous run can never satisfy the wait for the new one. Deleting a log yourself only races the game or the launcher.
+
 ## Before launching
 
 **Confirm RimTest Redux is present and enabled in the target instance's `ModsConfig.xml`** (e.g. `.savedatafolder/<version>/Config/ModsConfig.xml`), alongside the mod under test itself. Launching with RimTest Redux missing from the active mod list means `[RimTest Redux] TESTING START`/`TESTING END` will never appear (nothing runs the tests), and has been observed to corrupt/reset `ModsConfig.xml` on that launch, losing the previously active mod list. Check the file (or ask the user) before starting the game rather than assuming the last-known mod list is still correct.
@@ -19,7 +28,7 @@ The launcher is `gabs-launch.sh`, which runs `.vscode/build.sh <version>` itself
     ...
     [RimTest Redux] TESTING END
     ```
-    RimWorld truncates `Player.log` itself on startup, so a stale `TESTING END` from a previous run cannot leak into a fresh one — do not manually delete/truncate the log before launching to "be safe"; that only races the game's own truncation.
+    Leave the old `Player.log` alone; see [Never delete, truncate, move or rename `Player.log` or `Test.log`](#never-delete-truncate-move-or-rename-playerlog-or-testlog).
 3. **Wait for `TESTING END` without polling via `ScheduleWakeup`/sleep loops — they overshoot and waste time.** Since it's a one-shot terminal marker, use a backgrounded shell wait that blocks until it appears and notifies immediately (adjust the version path as needed):
     ```
     until grep -q "TESTING END" ".savedatafolder/<version>/Player.log" 2>/dev/null; do sleep 2; done
@@ -51,7 +60,7 @@ Full detail (config, output format, gotchas) is in [devtools.md](devtools.md) ("
    games_start {"gameId": "<game-id>", "launchInputs": {"rimworldVersion": "1.7", "runTests": true}}
    ```
    The result lists `appliedLaunchInputs`; if it doesn't include `runTests`, the input isn't declared in the GABS game config (check with `games_show`). The result code `started_bridge_pending` is expected, since there is no bridge to attach to. `gabs-launch.sh` builds the mod, adds `--pid <packageId>`, writes `Configs/UnitTestConfig.xml`, and launches. The game **quits by itself** at the end of the run; there is nothing to stop afterwards.
-3. **Wait for the end line in `Test.log`.** DevTools writes to `.savedatafolder/<version>/Test.log`, not `Player.log`, and has no `TESTING START/END` markers; `--exit` makes its last line `Test runner finished. Result: Passed|Failed`. `gabs-launch.sh` deletes the previous `Test.log` before launching the game, and `games_start` only returns once the game is running, so the file you wait on is always the new run's. Use a backgrounded shell wait (`run_in_background: true`) that notifies once on match, no sleeps or timeouts:
+3. **Wait for the end line in `Test.log`.** DevTools writes to `.savedatafolder/<version>/Test.log`, not `Player.log`, and has no `TESTING START/END` markers; `--exit` makes its last line `Test runner finished. Result: Passed|Failed`. `gabs-launch.sh` deletes the previous `Test.log` before launching the game, and `games_start` only returns once the game is running, so the file you wait on is always the new run's; do not delete it yourself (see [Never delete, truncate, move or rename `Player.log` or `Test.log`](#never-delete-truncate-move-or-rename-playerlog-or-testlog)). Use a backgrounded shell wait (`run_in_background: true`) that notifies once on match, no sleeps or timeouts:
    ```
    until grep -q "Test runner finished. Result:" ".savedatafolder/<version>/Test.log" 2>/dev/null; do sleep 2; done
    ```
