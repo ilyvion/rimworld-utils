@@ -127,6 +127,7 @@ Every code change must be accompanied by one or more tests insofar as it is poss
 - "The build succeeds" means 0 warnings and 0 errors. Read the build output for warnings, not just errors. Don't report success and leave warnings for the user to clean up — fix them as part of the change that introduced them, then rebuild until the output is clean.
 - Incremental builds can hide warnings from files that weren't recompiled, so the final verification build must be a clean build (e.g. `dotnet build --no-incremental`, or `dotnet clean` first) rather than an incremental one.
 - A project supports every RimWorld version listed in its `About/About.xml` `<supportedVersions>` (matching `LoadFolders.xml`'s `<vX.Y>` entries). Build with `.vscode/build.sh <version>` for _each_ supported version, not just the default/latest — a change can compile cleanly against the latest version's API while breaking an older one.
+- A build that fails with `CS0009: Metadata file '.../obj/<version>/.../PublicizedAssemblies/.../Assembly-CSharp.dll' could not be opened -- Image is too small`, followed by dozens of errors about missing RimWorld/Verse types, is caused by a stale MSBuild build-server node writing a 0-byte publicized assembly, not by the code. Run `dotnet build-server shutdown`, delete the project's `obj`/`bin` folders and build again.
 
 ## Formatting code
 
