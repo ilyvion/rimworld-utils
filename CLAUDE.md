@@ -30,6 +30,15 @@ This rewrites the referenced assembly's access modifiers to public at compile ti
 
 Reflection is still the right tool for members that don't exist at compile time at all (e.g. truly dynamic/reflection-based APIs), but not as a workaround for accessibility.
 
+## Integrations with other mods (`Integrations/`)
+
+Code and content that only load alongside another mod live under `Integrations/<OtherMod>/`, where `<OtherMod>` is the integration project's name suffix (`Source/<ModName>.<OtherMod>`):
+
+- The integration project builds into `Integrations/<OtherMod>/<version>/Assemblies` (`<OutputPath>../../Integrations/<OtherMod>/$(RimWorldVersion)/Assemblies</OutputPath>` in its `.csproj`).
+- Its Defs, Patches, Languages, Textures etc. go in `Integrations/<OtherMod>/Common` or `Integrations/<OtherMod>/<version>`.
+- `LoadFolders.xml` lists those folders in each version's block behind the other mod's packageId, e.g. `<li IfModActive="other.packageid">Integrations/OtherMod/1.6</li>`.
+- `Integrations` is in `.vscode/build_config.sh`'s `EXTRA_FILES` and in the workflows' `extra_files`, so every integration ships.
+
 ## Other mods' reference assemblies (`.deps/`)
 
 Integration projects reference another mod's assembly through `$(RimWorldSteamWorkshopFolderPath)\<workshop id>\$(RimWorldVersion)\Assemblies\<Name>.dll`. Locally and in CI that path is the repo's `.deps/refs`, which holds reference assemblies (made by refasmer) of the installed mods:
