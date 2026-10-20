@@ -1,19 +1,20 @@
 ---
 name: fix-17-warnings
-description: "Fix the build warnings a mod's RimWorld 1.7 (net10.0) build produces once 1.7 support has been added: first nullability warnings (CS86xx), then CA1510/CA1512 (ArgumentNullException.ThrowIfNull / ArgumentOutOfRangeException.ThrowIf* throw helpers, shimmed for 1.6 and earlier), then IDE0330 (System.Threading.Lock, shimmed for 1.6 and earlier), then CA1305 on StringBuilder.Append with an interpolated string (shimmed for 1.6 and earlier), then stop and report what's left. Use when asked to fix, clean up or address 1.7 warnings, or the warnings left behind by update-to-17."
+description: "Fix the build warnings a mod's RimWorld 1.7 (net10.0) build produces once 1.7 support has been added: first nullability warnings (CS86xx), then CA1510/CA1512 (ArgumentNullException.ThrowIfNull / ArgumentOutOfRangeException.ThrowIf* throw helpers, shimmed for 1.6 and earlier), then IDE0330 (System.Threading.Lock, shimmed for 1.6 and earlier), then CA1305 on StringBuilder.Append with an interpolated string (shimmed for 1.6 and earlier), then CA2263 on the non-generic Enum lookups (Enum.GetValues<TEnum> etc., shimmed for 1.6 and earlier), then stop and report what's left. Use when asked to fix, clean up or address 1.7 warnings, or the warnings left behind by update-to-17."
 ---
 
 # Fixing RimWorld 1.7 build warnings
 
 The 1.7 build targets `net10.0`, whose framework APIs carry nullable annotations, and its analyzers suggest APIs that only exist on .NET 7+. Every older version targets `net481`, which has neither. Each fix has to work for every version in `About/About.xml` `<supportedVersions>`: all versions keep building, and the test suite keeps passing.
 
-Work in this order, and do not go past step 5:
+Work in this order, and do not go past step 6:
 
 1. Nullability warnings.
 2. CA1510 and CA1512.
 3. IDE0330.
 4. CA1305 on `StringBuilder.Append`.
-5. Stop. Report the remaining warnings and wait for the user's instructions.
+5. CA2263 on `Enum` lookups.
+6. Stop. Report the remaining warnings and wait for the user's instructions.
 
 Ask the user (AskUserQuestion) whenever something is unclear. Do not commit unless told to.
 
@@ -102,22 +103,43 @@ CA1305 on `sb.Append($"...")` suggests `StringBuilder.Append(IFormatProvider, re
 
 - `sb.Append($"...")` becomes `sb.Append(CultureInfo.InvariantCulture, $"...")`.
 - Vanilla sets the current culture to en-US (`CultureInfoUtility.EnsureEnglish`), which formats numbers the same as the invariant culture. Where an interpolated `DateTime` or `DateTimeOffset` has no format string, pass `CultureInfo.CurrentCulture` instead, since the invariant culture formats dates differently from en-US.
-- Other CA1305 sites, such as `ToString()`, `Parse` or `string.Format`, are not part of this step. Leave them for step 5.
+- Other CA1305 sites, such as `ToString()`, `Parse` or `string.Format`, are not part of this step. Leave them for step 6.
 
 Rebuild all versions (clean) before moving on.
 
-## 5. Stop and report
+## 5. CA2263 on `Enum` lookups
 
-- At this point, every version except 1.7 has 0 warnings and 0 errors. 1.7 has 0 errors, and its only warnings are ones other than nullability, CA1510, CA1512, IDE0330 and CA1305 on `StringBuilder.Append`.
+CA2263 on `Enum.GetValues(typeof(T))`, `GetNames`, `GetName`, `IsDefined` or `Parse` suggests the generic overload (`Enum.GetValues<TEnum>()` etc.), which only exists on .NET 5+. On 1.6 and earlier, C# 14 static extension members (`extension(Enum) { ... }`), compiled only when `!v1_7_OR_GREATER`, stand in for `GetValues`, `GetNames`, `GetName` and `IsDefined`, and on 1.5 and earlier also for `Parse` (1.6 already has `Enum.Parse<TEnum>`). Call sites are written the same way on every version.
+
+**Where the shim comes from:**
+
+- **The mod has `<UseLaboratory>true</UseLaboratory>`:** ilyvion.Laboratory provides it as the public `EnumExtensions`. Don't add anything to the mod for this.
+    - On 1.6 and earlier, the mod now needs a Laboratory release that includes it installed at runtime. Raise the `VersionCheckDef` as in step 2, to the first release that includes every Laboratory shim the earlier steps used, and this one.
+- **The mod doesn't use Laboratory:**
+    - Copy `EnumExtensions.cs` from `../ilyvion.Laboratory/Source/ilyvion.Laboratory/` into the mod. Change the namespace to the mod's root namespace and `public static class` to `internal static class`, and remove the `[SinceVersion]` attribute, which only exists in Laboratory. Keep the `#if !v1_7_OR_GREATER`, the nested `#if !v1_6_OR_GREATER` around `Parse` and the CA1034 `#pragma`.
+    - Add tests based on `../ilyvion.Laboratory/Source/ilyvion.Laboratory.Tests/EnumExtensionsTests.cs`.
+
+**Converting call sites:**
+
+- `(TEnum[])Enum.GetValues(typeof(TEnum))` becomes `Enum.GetValues<TEnum>()`; drop the cast (or `.Cast<TEnum>()`), since the generic overload returns `TEnum[]`.
+- `Enum.GetNames(typeof(TEnum))`, `Enum.GetName(typeof(TEnum), value)` and `Enum.IsDefined(typeof(TEnum), value)` become `Enum.GetNames<TEnum>()`, `Enum.GetName(value)` and `Enum.IsDefined(value)`.
+- `(TEnum)Enum.Parse(typeof(TEnum), s)` becomes `Enum.Parse<TEnum>(s)`.
+- CA2263 sites on other APIs are not part of this step. Leave them for step 6.
+
+Rebuild all versions (clean) before moving on.
+
+## 6. Stop and report
+
+- At this point, every version except 1.7 has 0 warnings and 0 errors. 1.7 has 0 errors, and its only warnings are ones other than nullability, CA1510, CA1512, IDE0330, CA1305 on `StringBuilder.Append` and CA2263 on `Enum` lookups.
 - Don't fix, suppress or `NoWarn` the remaining warnings. List them for the user grouped by code, with counts and `file:line`, and wait for their instructions.
 
 ## Verify
 
 - `csharpier format .`
-- Run the test suite on 1.6 (see `gabs.md`). It's the regression check for the null checks and, when the mod has its own copy of the helpers or `Lock`, the runtime check for them and for the `StringBuilder.Append` shim.
+- Run the test suite on 1.6 (see `gabs.md`). It's the regression check for the null checks and, when the mod has its own copy of the helpers or `Lock`, the runtime check for them and for the `StringBuilder.Append` and `Enum` shims.
 - Players can't see any of these changes, so they don't need a changelog entry.
 - Summarize for the user:
     - the nullability fixes, by kind
-    - the number of throw-helper, `Lock` and `StringBuilder.Append` conversions
-    - where the helpers, `Lock` and the `StringBuilder.Append` shim come from, and any `VersionCheckDef` change
+    - the number of throw-helper, `Lock`, `StringBuilder.Append` and `Enum` conversions
+    - where the helpers, `Lock` and the `StringBuilder.Append` and `Enum` shims come from, and any `VersionCheckDef` change
     - the remaining 1.7 warnings
