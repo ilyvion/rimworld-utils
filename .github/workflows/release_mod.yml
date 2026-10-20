@@ -176,6 +176,17 @@ jobs:
 
                   text = definition_re.sub(take_definition, text).rstrip("\n")
 
+                  # GitHub alert markers render as plain text on Discord
+                  alert_emoji = {
+                      "NOTE": "ℹ️",
+                      "TIP": "💡",
+                      "IMPORTANT": "‼️",
+                      "WARNING": "⚠️",
+                      "CAUTION": "🚨",
+                  }
+                  for alert, emoji in alert_emoji.items():
+                      text = text.replace(f"[!{alert}]", f"{emoji}{alert}{emoji}")
+
 
                   def inline(label, url):
                       return f"[{label}](<{url}>)"
