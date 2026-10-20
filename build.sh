@@ -108,6 +108,10 @@ case "${SKIP_MOD_FOLDER_REMOVAL,,}" in
         ;;
 esac
 
+# Each mod with DevTools tests installs its own DevTools.dll, and the game loads every copy in
+# active mods, so only the copy this build installs is kept.
+find "$(dirname "$TARGET")" \( -name 'DevTools.dll' -o -name 'DevTools.dll.hotswap' \) -delete
+
 # copy mod files
 mkdir -p "$TARGET"
 cp -r --preserve=timestamps "$RIMWORLD_VERSION" "$TARGET"
