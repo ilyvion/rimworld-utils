@@ -37,4 +37,6 @@ If more than one document is in scope, also check them against each other for co
 
 `SteamDescription.txt` must not mention which RimWorld versions the mod supports at all. Remove any such mention you find there, and don't copy one over from another document.
 
+`About/About.xml` must have a `<modVersion>` element, placed right after `<supportedVersions>`, whose value is the `<VersionPrefix>` in `Directory.Build.props`. If it's missing, add it; if its value differs, ask the user which is correct. If `<supportedVersions>` lists any version older than 1.4, the element needs `IgnoreIfNoMatchingField="True"` (`<modVersion IgnoreIfNoMatchingField="True">1.2.3</modVersion>`), since RimWorld only has the field from 1.4 on; otherwise it has no attribute. Do this even when `About/About.xml`'s `<description>` isn't one of the documents in scope.
+
 If anything needs clarification, or there are multiple reasonable ways to resolve an inconsistency, use the AskUserQuestion tool rather than assuming.
