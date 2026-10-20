@@ -37,6 +37,8 @@ description: "Add RimWorld 1.7 support to a mod project that already builds for 
     - Keep the `<Compile Remove="**/*.cs" />` group and the `CS0436` `NoWarn` group; pre-1.6 builds need them. Change their conditions from `'$(RimWorldVersion)' != '1.6'` to `'$(RimWorldVersion)' != '1.6' And '$(RimWorldVersion)' != '1.7'`.
     - Remove any `Lib.Harmony.Ref` `ExcludeAssets="all"` reference; DevTools keeps its Harmony reference private.
     - Update the csproj comments to match (no history narration).
+- **`.vscode/build_config.sh`**: if it sets `RIMWORLD_VERSION`, delete that line, so `.vscode/build.sh` and `gabs-launch.sh` default to 1.7.
+- **1.7 game instance**: if `.savedatafolder/1.7/Config/ModsConfig.xml` doesn't exist, copy everything in `.savedatafolder/1.6` into `.savedatafolder/1.7` (creating it if needed), then set `.savedatafolder/1.7/Config/ModsConfig.xml`'s `<version>` to the installed game's version (the contents of `Version.txt` in the game root, e.g. `1.7.4981 rev136`); with a 1.6 `<version>` the game resets the mod list on launch.
 - **Project docs**: update mentions of the supported versions, of tests existing only on 1.6, and of `1.6`-specific paths such as `.savedatafolder/1.6/Test.log` in the repo's own `CLAUDE.md`. `gabs-launch.sh` runs 1.7 unless the `rimworldVersion` launch input says otherwise.
 - **Laboratory `VersionCheckDef`**: a mod with `<UseLaboratory>true</UseLaboratory>` needs ilyvion's Laboratory 0.25 or newer, the first release with 1.7 support. Set `majorVersion`/`minorVersion` in its `ilyvion.Laboratory.VersionCheckDef` (usually `Common/Defs/VersionCheck.xml`) to `0`/`25` if they're lower. If the mod has none, create one in a `Defs` folder that every version loads:
 
