@@ -138,6 +138,7 @@ mkdir -p "$SAVE_DIR"
 RUNNING_TESTS=false
 CONFIG_NAME=UnitTestConfig
 HAS_PID=false
+EXTRA_ENV=()
 for arg in "${FORWARDED_ARGS[@]}"; do
     case "$arg" in
         --test|-t) RUNNING_TESTS=true; CONFIG_NAME=UnitTestConfig ;;
@@ -153,7 +154,12 @@ if [[ "$RUNNING_TESTS" == true ]]; then
         FORWARDED_ARGS=(--pid "$PACKAGE_ID" "${FORWARDED_ARGS[@]}")
     fi
     # -NoWindow (headless-style launch) exists in 1.7+; 1.6 and earlier are not known to support it.
-    [[ "$HAS_LOGFILE" == false ]] && FORWARDED_ARGS+=(-NoWindow)
+    # FORCE_X11 makes the game use X11 instead of Wayland, where a hidden window renders no frames
+    # and so runs no OnGUI.
+    if [[ "$HAS_LOGFILE" == false ]]; then
+        FORWARDED_ARGS+=(-NoWindow)
+        EXTRA_ENV+=(--env=FORCE_X11=1)
+    fi
     TARGET="${TARGET:-$STEAM_COMMON/RimWorld/Mods/$MOD_NAME}"
     # build.sh empties the mod folder, so the config is written after it. Test.log is truncated
     # by DevTools at the start of each run; remove it too so a stale one can't be read.
@@ -238,6 +244,7 @@ flatpak-spawn --host bash -c '
   --env=PRESSURE_VESSEL_FILESYSTEMS_RW="$PROJECT_DIR:$GAME_DIR" \
   --env=SteamAppId=294100 \
   --env=SteamGameId=294100 \
+  "${EXTRA_ENV[@]}" \
   --command="$STEAM_COMMON/SteamLinuxRuntime_soldier/_v2-entry-point" \
   com.valvesoftware.Steam \
   --verb=waitforexitandrun \
