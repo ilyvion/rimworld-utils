@@ -23,6 +23,10 @@ namespace <#=modBaseNamespace#>;
     /// </summary>
     public static string PackageId => Instance.Content.PackageId;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="<#=modClassName#>"/> class.
+    /// </summary>
+    /// <param name="content">The mod content pack.</param>
     public <#=modClassName#>(ModContentPack content)
         : base(content)
     {
@@ -30,6 +34,11 @@ namespace <#=modBaseNamespace#>;
         Construct();
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "Implementations may or may not use instance data"
+    )]
     partial void Construct();
 <#
         if (!string.IsNullOrEmpty(settingsClassName)) {
