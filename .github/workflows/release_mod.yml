@@ -89,6 +89,38 @@ jobs:
                     echo "::notice file=SteamDescription.txt,title=Steam Description Changed::${reason^}. Remember to update the Steam Workshop description after this release."
                   fi
 
+            - name: Check Steam Preview Image for Changes Since Last Release
+              id: steam_preview
+              shell: bash
+              env:
+                  CURRENT_TAG: ${{ steps.variables.outputs.version }}
+                  UPLOAD_TO_STEAM: ${{ inputs.upload_to_steam }}
+              run: |
+                  echo "changed=false" >> "$GITHUB_OUTPUT"
+
+                  if [ ! -f "About/Preview.png" ]; then
+                    echo "::warning file=About/Preview.png,title=Steam Preview Image Missing::No About/Preview.png found in the repository."
+                    exit 0
+                  fi
+
+                  previous_tag=$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null || true)
+
+                  # A first release counts as changed, since the Steam Workshop preview image may not match the file yet.
+                  if [ -z "$previous_tag" ]; then
+                    reason="this is the first release"
+                  elif ! git diff --quiet "$previous_tag" "$CURRENT_TAG" -- About/Preview.png; then
+                    reason="About/Preview.png has changed since the last release ($previous_tag)"
+                  else
+                    exit 0
+                  fi
+
+                  echo "changed=true" >> "$GITHUB_OUTPUT"
+                  if [ "$UPLOAD_TO_STEAM" = "true" ]; then
+                    echo "::notice file=About/Preview.png,title=Steam Preview Image Changed::${reason^}. The Steam Workshop preview image will be updated by the upload."
+                  else
+                    echo "::notice file=About/Preview.png,title=Steam Preview Image Changed::${reason^}. Remember to update the Steam Workshop preview image after this release."
+                  fi
+
             - name: Verify Release Tag Is Signed
               shell: bash
               env:
@@ -379,29 +411,73 @@ jobs:
                   itemid=$(<"${{ steps.variables.outputs.mod_path }}/About/PublishedFileId.txt")
                   echo "itemid=$itemid" >> "$GITHUB_OUTPUT"
 
-            - name: Upload to Steam Workshop
-              if: ${{ inputs.upload_to_steam && steps.published_file_id_check.outputs.exists == 'true' }}
-              uses: ZehMatt/steam-workshop-upload@569de82c2fdf3042af8491379fb698829ba63a9d
-              with:
-                  appid: 294100 # RimWorld
-                  itemid: ${{ steps.mod_item_id.outputs.itemid }}
-                  path: ${{ steps.variables.outputs.mod_path }}
-                  changenote: ${{ steps.steam_markup.outputs.markup }}
-              env:
-                  STEAM_USERNAME: ${{ secrets.STEAM_USERNAME }}
-                  STEAM_PASSWORD: ${{ secrets.STEAM_PASSWORD }}
-                  STEAM_TFASEED: ${{ secrets.STEAM_TFASEED }}
-
             - name: Checkout rimworld-utils Repository
               if: ${{ inputs.upload_to_steam && steps.published_file_id_check.outputs.exists == 'true' }}
               uses: actions/checkout@v7
               with:
                   repository: "ilyvion/rimworld-utils"
                   path: "rimworld-utils"
-                  sparse-checkout: steam_workshop_update.py
+                  sparse-checkout: |
+                      steam_guard.py
+                      steam_workshop_update.py
                   sparse-checkout-cone-mode: false
 
-            # The upload action can't set Workshop tags or the description, so they are updated separately
+            # SteamCMD is a 32-bit program, and the runner has no 32-bit libraries
+            - name: Install SteamCMD
+              if: ${{ inputs.upload_to_steam && steps.published_file_id_check.outputs.exists == 'true' }}
+              shell: bash
+              run: |
+                  sudo apt-get update -qq
+                  sudo apt-get install -y -qq --no-install-recommends lib32gcc-s1
+                  steamcmd_dir="$RUNNER_TEMP/steamcmd"
+                  mkdir -p "$steamcmd_dir"
+                  curl -sSfL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | tar -xz -C "$steamcmd_dir"
+                  echo "STEAMCMD_DIR=$steamcmd_dir" >> "$GITHUB_ENV"
+
+            - name: Upload to Steam Workshop
+              if: ${{ inputs.upload_to_steam && steps.published_file_id_check.outputs.exists == 'true' }}
+              shell: bash
+              env:
+                  STEAM_USERNAME: ${{ secrets.STEAM_USERNAME }}
+                  STEAM_PASSWORD: ${{ secrets.STEAM_PASSWORD }}
+                  STEAM_TFASEED: ${{ secrets.STEAM_TFASEED }}
+                  ITEM_ID: ${{ steps.mod_item_id.outputs.itemid }}
+                  MOD_PATH: ${{ steps.variables.outputs.mod_path }}
+                  CHANGENOTE: ${{ steps.steam_markup.outputs.markup }}
+                  PREVIEW_CHANGED: ${{ steps.steam_preview.outputs.changed }}
+              run: |
+                  content_folder=$(realpath "$MOD_PATH")
+                  vdf="$RUNNER_TEMP/workshop_item.vdf"
+                  {
+                    echo '"workshopitem"'
+                    echo '{'
+                    echo '  "appid" "294100"'
+                    echo "  \"publishedfileid\" \"$ITEM_ID\""
+                    echo "  \"contentfolder\" \"$content_folder\""
+                    if [ "$PREVIEW_CHANGED" = "true" ]; then
+                      echo "  \"previewfile\" \"$content_folder/About/Preview.png\""
+                    fi
+                    echo "  \"changenote\" \"$CHANGENOTE\""
+                    echo '}'
+                  } > "$vdf"
+                  cat "$vdf"
+
+                  guard_code=$(python3 rimworld-utils/steam_guard.py)
+                  echo "::add-mask::$guard_code"
+                  if ! "$STEAMCMD_DIR/steamcmd.sh" +@ShutdownOnFailedCommand 1 +@NoPromptForPassword 1 \
+                      +login "$STEAM_USERNAME" "$STEAM_PASSWORD" "$guard_code" \
+                      +workshop_build_item "$vdf" +quit; then
+                    for log in "$HOME"/Steam/logs/{stderr,workshop_log}.txt "$STEAMCMD_DIR"/logs/{stderr,workshop_log}.txt; do
+                      if [ -f "$log" ]; then
+                        echo "::group::$log"
+                        cat "$log"
+                        echo "::endgroup::"
+                      fi
+                    done
+                    exit 1
+                  fi
+
+            # SteamCMD can't set Workshop tags, so they are updated separately, along with the description
             - name: Update Steam Workshop Tags and Description
               if: ${{ inputs.upload_to_steam && steps.published_file_id_check.outputs.exists == 'true' }}
               shell: bash

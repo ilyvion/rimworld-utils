@@ -29,7 +29,6 @@ import base64
 import collections
 import gzip
 import hashlib
-import hmac
 import json
 import os
 import random
@@ -44,6 +43,8 @@ import xml.etree.ElementTree as ElementTree
 
 import rsa
 import websocket
+
+from steam_guard import steam_guard_code
 
 RIMWORLD_APPID = 294100
 VERSION_TAG = re.compile(r"\d+\.\d+")
@@ -345,22 +346,6 @@ def fetch_cm_endpoints():
 
 
 # Authentication
-
-
-def steam_guard_code(shared_secret, timestamp=None):
-    """Generates a Steam Guard mobile authenticator code, the same as steam-totp's generateAuthCode."""
-    secret = shared_secret.strip()
-    key = bytes.fromhex(secret) if re.fullmatch(r"[0-9a-fA-F]{40}", secret) else base64.b64decode(secret)
-    counter = int(time.time() if timestamp is None else timestamp) // 30
-    digest = hmac.new(key, struct.pack(">Q", counter), hashlib.sha1).digest()
-    start = digest[19] & 0x0F
-    value = struct.unpack(">I", digest[start : start + 4])[0] & 0x7FFFFFFF
-    chars = "23456789BCDFGHJKMNPQRTVWXY"
-    code = ""
-    for _ in range(5):
-        code += chars[value % len(chars)]
-        value //= len(chars)
-    return code
 
 
 def submit_guard_code(cm, client_id, steamid, shared_secret):
