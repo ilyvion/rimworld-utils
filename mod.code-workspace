@@ -4,6 +4,10 @@
 			"path": "."
 		},
 		{
+			"name": "ilyvion.LaboratoryMod",
+			"path": "../ilyvion.Laboratory/Source/ilyvion.LaboratoryMod"
+		},
+		{
 			"path": "../../../../.var/app/com.valvesoftware.Steam/.steam/steam/steamapps/common/RimWorld/Data"
 		}
 	],
