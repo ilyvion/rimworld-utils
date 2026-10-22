@@ -40,6 +40,14 @@
             "stopAtEntry": false
         },
         {
+            // Starts the game held before any game or mod code runs (see debug-launch.sh) and attaches to it
+            "name": "Rimworld Mod Project 1.7 (attach from startup)",
+            "type": "coreclr",
+            "request": "attach",
+            "preLaunchTask": "start 1.7 for debugging",
+            "processName": "RimWorld"
+        },
+        {
             "name": "Rimworld Mod Project Pre-1.7",
             "type": "coreclr",
             "request": "launch",

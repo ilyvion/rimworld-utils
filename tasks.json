@@ -50,6 +50,28 @@
                 "1.7"
             ],
             "problemMatcher": []
+        },
+        {
+            // Runs until the game exits; counts as started once the game waits for a debugger
+            "label": "start 1.7 for debugging",
+            "type": "shell",
+            "command": "${workspaceFolder}/../rimworld-utils/debug-launch.sh",
+            "args": [
+                "1.7"
+            ],
+            "dependsOn": "build 1.7",
+            "isBackground": true,
+            "problemMatcher": {
+                "owner": "rimworld-debug-launch",
+                // A problem matcher requires a pattern; this one never matches, so no problems are reported
+                "pattern": {
+                    "regexp": "^__no_problems__$"
+                },
+                "background": {
+                    "beginsPattern": "^Starting RimWorld",
+                    "endsPattern": "^RimWorld is waiting for a debugger"
+                }
+            }
         }
     ],
     "inputs": [

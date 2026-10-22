@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <LangVersion>latest</LangVersion>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <InvariantGlobalization>true</InvariantGlobalization>
+    </PropertyGroup>
+</Project>
