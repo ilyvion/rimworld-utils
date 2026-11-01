@@ -8,10 +8,16 @@ The procedure below is for projects using **RimTest Redux** (the `<ModName>.Test
 
 **No log cleanup step exists in either procedure. Do not add one.** Launch the game with the old logs left exactly where they are; no `rm`, `> file`, `truncate`, `mv` or backup copy, before or after a run.
 
-- `Player.log`: overwritten at every launch, by RimWorld's `-logfile` on 1.6 and earlier and by `gabs-launch.sh`'s output redirect on 1.7.
-- `Test.log`: `gabs-launch.sh` deletes it before launching the game.
+- `Player.log`: overwritten as the game starts, by RimWorld's `-logfile` on 1.6 and earlier and by `gabs-launch.sh`'s output redirect on 1.7. A connected GABP bridge means it is the new run's.
+- `Test.log`: `gabs-launch.sh` deletes it after building, before launching the game.
 
-So a stale end marker from a previous run can never satisfy the wait for the new one. Deleting a log yourself only races the game or the launcher.
+Deleting a log yourself only races the game or the launcher.
+
+## `launch-pending`: when the launch has got past the build
+
+**`games_start` can return while `gabs-launch.sh` is still building**, with the previous run's logs still in place, end markers included. `gabs-launch.sh` creates `.savedatafolder/<version>/launch-pending` when it starts and removes it just before spawning the game, so every wait on a log's end marker must first require that file to be gone; the waits below do.
+
+A `launch-pending` file that stays while `games_status` shows the game stopped means the launch failed before the game was spawned, usually in the build. The next launch replaces it.
 
 ## Before launching
 
@@ -31,8 +37,9 @@ The launcher is `gabs-launch.sh`, which runs `.vscode/build.sh <version>` itself
     Leave the old `Player.log` alone; see [Never delete, truncate, move or rename `Player.log` or `Test.log`](#never-delete-truncate-move-or-rename-playerlog-or-testlog).
 3. **Wait for `TESTING END` without polling via `ScheduleWakeup`/sleep loops — they overshoot and waste time.** Since it's a one-shot terminal marker, use a backgrounded shell wait that blocks until it appears and notifies immediately (adjust the version path as needed):
     ```
-    until grep -q "TESTING END" ".savedatafolder/<version>/Player.log" 2>/dev/null; do sleep 2; done
+    until [ ! -e ".savedatafolder/<version>/launch-pending" ] && grep -q "TESTING END" ".savedatafolder/<version>/Player.log" 2>/dev/null; do sleep 2; done
     ```
+    Start this wait only once the GABP bridge from step 1 has connected, since `Player.log` is replaced as the game starts, after `launch-pending` is gone.
     Run via the Bash tool with `run_in_background: true` — this is the "tell me when X is ready" case, so a single notification on match beats any GABS log-tool polling loop too.
 4. Read the log between the markers to determine pass/fail. A fully successful run's `SUMMARY` line looks like:
     ```
@@ -60,11 +67,11 @@ Full detail (config, output format, gotchas) is in [devtools.md](devtools.md) ("
    games_start {"gameId": "<game-id>", "launchInputs": {"rimworldVersion": "1.7", "runTests": true}}
    ```
    The result lists `appliedLaunchInputs`; if it doesn't include `runTests`, the input isn't declared in the GABS game config (check with `games_show`). The result code `started_bridge_pending` is expected, since there is no bridge to attach to. `gabs-launch.sh` builds the mod, adds `--pid <packageId>`, writes `Configs/UnitTestConfig.xml`, and launches. The game **quits by itself** at the end of the run; there is nothing to stop afterwards.
-3. **Wait for the end line in `Test.log`.** DevTools writes to `.savedatafolder/<version>/Test.log`, not `Player.log`, and has no `TESTING START/END` markers; `--exit` makes its last line `Test runner finished. Result: Passed|Failed`. `gabs-launch.sh` deletes the previous `Test.log` before launching the game, and `games_start` only returns once the game is running, so the file you wait on is always the new run's; do not delete it yourself (see [Never delete, truncate, move or rename `Player.log` or `Test.log`](#never-delete-truncate-move-or-rename-playerlog-or-testlog)). Use a backgrounded shell wait (`run_in_background: true`) that notifies once on match, no sleeps or timeouts:
+3. **Wait for the end line in `Test.log`.** DevTools writes to `.savedatafolder/<version>/Test.log`, not `Player.log`, and has no `TESTING START/END` markers; `--exit` makes its last line `Test runner finished. Result: Passed|Failed`. The previous run's `Test.log` stays in place until the launcher has finished building, so the wait must first see [`launch-pending`](#launch-pending-when-the-launch-has-got-past-the-build) gone; do not delete the log yourself (see [Never delete, truncate, move or rename `Player.log` or `Test.log`](#never-delete-truncate-move-or-rename-playerlog-or-testlog)). Use a backgrounded shell wait (`run_in_background: true`) that notifies once on match, no sleeps or timeouts:
    ```
-   until grep -q "Test runner finished. Result:" ".savedatafolder/<version>/Test.log" 2>/dev/null; do sleep 2; done
+   until [ ! -e ".savedatafolder/<version>/launch-pending" ] && grep -q "Test runner finished. Result:" ".savedatafolder/<version>/Test.log" 2>/dev/null; do sleep 2; done
    ```
-   If the run crashes or aborts, the line never appears; if the wait seems stuck, check `games_status` (game no longer running and no end line means the run aborted; see `Player.log`).
+   If the launch fails or the run crashes or aborts, the wait never ends; if it seems stuck, check `games_status` (game not running with `launch-pending` still there means the launch failed, usually in the build; game not running with no end line means the run aborted, see `Player.log`).
 4. **Read the result** from `.savedatafolder/<version>/Test.log`: the last line is `Test runner finished. Result: Passed` or `Result: Failed`. Count tests with `grep -cP '^--\t\[Passed\]' Test.log` and `grep -cP '^--\t\[Failed\]' Test.log`; failure details follow each `[Failed]` line. A missing `Test.log`, or no `Test runner finished` line, means the run did not complete (check `Player.log` for `Unable to register` errors). A logged warning/error during a test fails it; see devtools.md's whitelisting section.
 5. Tests run in the same game process as normal play, so do not use `runTests` when the game must stay running for interactive verification; start it normally (without the input) for that.
 
@@ -77,4 +84,4 @@ Full detail (config, output format, gotchas) is in [devtools.md](devtools.md) ("
   "args": ["--test-plan", "${value}", "--exit"]
 }
 ```
-started with `games_start {"gameId": "<game-id>", "launchInputs": {"testPlan": "<plan-name>"}}`. A plan spawns a second child game process per job (`TestPlans/<name>.xml`'s `jobs`); see devtools.md's "Gotchas" `--test-plan` bullet for the child's launch args, per-child log naming (`Player-child<N>.log`), and why the parent and all its children safely append into one shared `Test.log` instead of clobbering it. **Wait on a different marker than step 3**: a job can itself run a nested `--test --exit` suite, so a multi-job plan's `Test.log` can contain more than one ordinary `Test runner finished. Result:` line before the plan is actually done. The parent writes its own `Test plan finished. Result: Passed|Failed` line once, after every job has finished, so use `until grep -q "Test plan finished. Result:" ".savedatafolder/<version>/Test.log" 2>/dev/null; do sleep 2; done` for plans instead.
+started with `games_start {"gameId": "<game-id>", "launchInputs": {"testPlan": "<plan-name>"}}`. A plan spawns a second child game process per job (`TestPlans/<name>.xml`'s `jobs`); see devtools.md's "Gotchas" `--test-plan` bullet for the child's launch args, per-child log naming (`Player-child<N>.log`), and why the parent and all its children safely append into one shared `Test.log` instead of clobbering it. **Wait on a different marker than step 3**: a job can itself run a nested `--test --exit` suite, so a multi-job plan's `Test.log` can contain more than one ordinary `Test runner finished. Result:` line before the plan is actually done. The parent writes its own `Test plan finished. Result: Passed|Failed` line once, after every job has finished, so use `until [ ! -e ".savedatafolder/<version>/launch-pending" ] && grep -q "Test plan finished. Result:" ".savedatafolder/<version>/Test.log" 2>/dev/null; do sleep 2; done` for plans instead.

@@ -70,7 +70,7 @@ Simulate CI, for each DevTools version: temporarily delete built `DevTools.dll` 
 
 ## 6. Run the tests
 
-Run the full suite once per DevTools version. Follow `gabs.md` "Running the tests with DevTools" (each is a full, unfiltered run, since the passed count must match the baseline; use `testFilter` for any intermediate debugging runs): `games_start` with `launchInputs: {"runTests": true, "rimworldVersion": "<version>"}`, background-wait with `until grep -q "Test runner finished. Result:" ".savedatafolder/<version>/Test.log"`, then count `[Passed]`/`[Failed]` lines. All baseline tests must pass on each version and each passed count must equal that version's `[Test]` count from step 0. Investigate failures: a failure that is a logged warning/error is a whitelisting question (step 4), anything else is a real conversion mistake (commonly swapped operands: `AreEqual(expected, actual)`).
+Run the full suite once per DevTools version. Follow `gabs.md` "Running the tests with DevTools" (each is a full, unfiltered run, since the passed count must match the baseline; use `testFilter` for any intermediate debugging runs): `games_start` with `launchInputs: {"runTests": true, "rimworldVersion": "<version>"}`, background-wait with `until [ ! -e ".savedatafolder/<version>/launch-pending" ] && grep -q "Test runner finished. Result:" ".savedatafolder/<version>/Test.log"`, then count `[Passed]`/`[Failed]` lines. All baseline tests must pass on each version and each passed count must equal that version's `[Test]` count from step 0. Investigate failures: a failure that is a logged warning/error is a whitelisting question (step 4), anything else is a real conversion mistake (commonly swapped operands: `AreEqual(expected, actual)`).
 
 ## 7. Finish
 

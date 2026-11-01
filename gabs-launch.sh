@@ -75,7 +75,8 @@
 #
 # Runs .vscode/build.sh $RIMWORLD_VERSION before launching, so the mod
 # folder the game loads from is always up to date for the version being
-# launched.
+# launched. .savedatafolder/<version>/launch-pending exists from the start of the script until just
+# before the game is spawned.
 
 set -euo pipefail
 
@@ -132,6 +133,11 @@ GAME_DIR="$(dirname "$RIMWORLD_EXECUTABLE")"
 
 SAVE_DIR="$PROJECT_DIR/.savedatafolder/$RIMWORLD_VERSION"
 mkdir -p "$SAVE_DIR"
+
+# Exists until the game is about to be spawned, by which point Test.log has been replaced. A failed
+# launch leaves it behind, so a wait on Test.log blocks instead of reading the previous run's log.
+LAUNCH_PENDING="$SAVE_DIR/launch-pending"
+touch "$LAUNCH_PENDING"
 
 "$PROJECT_DIR/.vscode/build.sh" "$RIMWORLD_VERSION"
 
@@ -221,6 +227,8 @@ else
     # -NoFileLog (1.7+) keeps the game from writing its own Player.log into the main game directory.
     LOG_ARGS=(-NoFileLog)
 fi
+
+rm -f "$LAUNCH_PENDING"
 
 # Runs on the host: joins Steam's sandbox (--parent-pid) the way Steam's own launches do, and, when
 # given a log path, writes the game's output, minus terminal color codes, to it.

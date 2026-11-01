@@ -113,7 +113,7 @@ Projects are migrating from RimTest Redux to DevTools (SmashPhil). Tell them apa
 ## Launching RimWorld under GABS to run the test suite
 
 - [Launching RimWorld under GABS to run the test suite](gabs.md) — Instructions for launching RimWorld under GABS to run the mod's unit tests (RimTest Redux and DevTools procedures). For full AI-driven game sessions (screenshots, mod inspection, UI investigation, debug-action testing), use the `run` skill instead.
-- **Never delete, truncate or move `Player.log` or `Test.log` before or after a run.** The launch already replaces both, so the wait for the end marker always sees the new run's log.
+- **Never delete, truncate or move `Player.log` or `Test.log` before or after a run.** The launch replaces both. `games_start` can return while the launcher is still building and the old logs are still there, so a wait for an end marker must first see `.savedatafolder/<version>/launch-pending` gone (see gabs.md).
 
 ## Writing tests
 
@@ -127,7 +127,7 @@ Every code change must be accompanied by one or more tests insofar as it is poss
 - "The build succeeds" means 0 warnings and 0 errors. Read the build output for warnings, not just errors. Don't report success and leave warnings for the user to clean up — fix them as part of the change that introduced them, then rebuild until the output is clean.
 - Incremental builds can hide warnings from files that weren't recompiled, so the final verification build must be a clean build (e.g. `dotnet build --no-incremental`, or `dotnet clean` first) rather than an incremental one.
 - A project supports every RimWorld version listed in its `About/About.xml` `<supportedVersions>` (matching `LoadFolders.xml`'s `<vX.Y>` entries). Build with `.vscode/build.sh <version>` for _each_ supported version, not just the default/latest — a change can compile cleanly against the latest version's API while breaking an older one.
-- A build that fails with `CS0009: Metadata file '.../obj/<version>/.../PublicizedAssemblies/.../Assembly-CSharp.dll' could not be opened -- Image is too small`, followed by dozens of errors about missing RimWorld/Verse types, is caused by a stale MSBuild build-server node writing a 0-byte publicized assembly, not by the code. Run `dotnet build-server shutdown`, delete the project's `obj`/`bin` folders and build again.
+- A build that fails with `CS0009: Metadata file '.../obj/<version>/.../PublicizedAssemblies/.../Assembly-CSharp.dll' could not be opened -- Image is too small`, followed by dozens of errors about missing RimWorld/Verse types, comes from the build tooling, not the code. Run `dotnet build-server shutdown`, delete the project's `obj`/`bin` folders and build again. It can take several attempts, so repeat those steps until the build succeeds.
 
 ## Formatting code
 
