@@ -1,10 +1,10 @@
 # CLAUDE.md
 
-> This file is likely a symlink shared across sibling mod repos (its canonical home is `rimworld-utils/CLAUDE.md`). If you need to edit it, `readlink -f CLAUDE.md` first and write to the resolved target — writing through the symlink path directly will be refused.
+> This file is likely a symlink shared across sibling mod repos (its canonical home is `rimworld-utils/CLAUDE.md`). If you need to edit it, `readlink -f CLAUDE.md` first and write to the resolved target — writing through the symlink path directly will be refused by the harness.
 >
 > Every other `.md` file linked from this one (`icons.md`, `gabs.md`, `tests.md`, etc.) lives only in that same canonical directory — they are **not** individually symlinked into this repo, so they will not exist at their plain relative path here (e.g. `gabs.md` in this repo's own root) and running `readlink` or `ls` on them here will just fail. Do not try to resolve each linked file separately. Instead, resolve the directory once — `dirname "$(readlink -f CLAUDE.md)"` — and read every linked `.md` from that directory. If `readlink -f CLAUDE.md` prints this same repo's own path, CLAUDE.md is the canonical copy, not a symlink, and every linked file already sits right next to it — read them directly, no resolution needed.
 >
-> Some repos don't symlink `CLAUDE.md` itself; instead their `CLAUDE.md` is a real, repo-specific file that pulls this shared content in via an `@CLAUDE.SHARED.md` include, where `CLAUDE.SHARED.md` (not `CLAUDE.md`) is the symlink to this canonical file. The harness inlines `@`-includes before you see them, so this shared content can show up even when `readlink -f CLAUDE.md` resolves to that repo's own path — that result alone does not mean everything is local. Before trusting a same-path result, `ls` the same directory for a `CLAUDE.SHARED.md` (or similarly named symlinked include); if one exists, `readlink -f` _that_ file instead to find the real canonical directory to read linked `.md` files from.
+> A repo with instructions of its own keeps them in a real, repo-specific `CLAUDE.local.md` next to the `CLAUDE.md` symlink; the harness loads it after this file. When editing a repo's own instructions, edit that file, not this one.
 
 ## Sibling repositories this project depends on
 
