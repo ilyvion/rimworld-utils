@@ -33,6 +33,11 @@ on:
                 description: "Whether to upload the mod to Steam Workshop"
                 default: true
                 required: false
+            announcement_role_id:
+                type: "string"
+                description: "ID of the Discord role to ping in the release announcement; empty pings no role"
+                default: "1272782840941117453"
+                required: false
 
 jobs:
     release:
@@ -163,6 +168,17 @@ jobs:
               shell: bash
               run: zip -r ${{ steps.variables.outputs.mod_path }}.zip ${{ steps.variables.outputs.mod_path }}/*
 
+            - name: Checkout rimworld-utils Repository
+              uses: actions/checkout@v7
+              with:
+                  repository: "ilyvion/rimworld-utils"
+                  path: "rimworld-utils"
+                  sparse-checkout: |
+                      discord_release_notes.sh
+                      steam_guard.py
+                      steam_workshop_update.py
+                  sparse-checkout-cone-mode: false
+
             - name: Get Changelog Entry
               id: changelog_reader
               uses: mindsers/changelog-reader-action@v2
@@ -175,115 +191,7 @@ jobs:
               env:
                   CHANGELOG_CONTENT: ${{ steps.changelog_reader.outputs.changes }}
                   VERSION: ${{ steps.variables.outputs.version }}
-              run: |
-                  # Discord has a 2000-character-per-message limit, so the release notes are
-                  # greedily packed into chunks that stay under that limit, separated by "---".
-                  # Each chunk can then be pasted as a separate Discord message.
-                  discord_limit=2000
-
-                  header="**Updated $(date +%Y-%m-%d)** (${VERSION})"
-                  subheader="Release notes:"
-
-                  # Discord doesn't support reference-style links ([text][label] plus a
-                  # separate "[label]: url" line), so those are converted to inline links.
-                  # It also embeds link previews unless the URL is wrapped: [text](<url>).
-                  discord_body=$(python3 - <<'PY'
-                  import os
-                  import re
-
-                  text = os.environ["CHANGELOG_CONTENT"]
-
-                  # Collect and remove reference definitions: [label]: url "optional title"
-                  definitions = {}
-                  definition_re = re.compile(
-                      r"""^ {0,3}\[([^\]]+)\]:[ \t]*<?(\S+?)>?(?:[ \t]+(?:"[^"]*"|'[^']*'|\([^)]*\)))?[ \t]*$\n?""",
-                      re.M,
-                  )
-
-
-                  def take_definition(m):
-                      definitions[m.group(1).lower()] = m.group(2)
-                      return ""
-
-
-                  text = definition_re.sub(take_definition, text).strip("\n")
-
-                  # GitHub alert markers render as plain text on Discord
-                  alert_emoji = {
-                      "NOTE": "ℹ️",
-                      "TIP": "💡",
-                      "IMPORTANT": "‼️",
-                      "WARNING": "⚠️",
-                      "CAUTION": "🚨",
-                  }
-                  for alert, emoji in alert_emoji.items():
-                      text = text.replace(f"[!{alert}]", f"{emoji}{alert}{emoji}")
-
-
-                  def inline(label, url):
-                      return f"[{label}](<{url}>)"
-
-
-                  def full_reference(m):
-                      label = m.group(2) or m.group(1)
-                      url = definitions.get(label.lower())
-                      return inline(m.group(1), url) if url else m.group(0)
-
-
-                  def shortcut_reference(m):
-                      url = definitions.get(m.group(1).lower())
-                      return inline(m.group(1), url) if url else m.group(0)
-
-
-                  # [text][label] and [text][]
-                  text = re.sub(r"\[([^\]]+)\]\[([^\]]*)\]", full_reference, text)
-                  # [label]
-                  text = re.sub(r"\[([^\]]+)\](?![\[(:])", shortcut_reference, text)
-                  # Inline links
-                  text = re.sub(r"\]\((https?:[^)>\s]+)\)", r"](<\1>)", text)
-                  text = re.sub(r"^### (.*)$", r"**\1**", text, flags=re.M)
-
-                  print(text)
-                  PY
-                  )
-                  mapfile -t body_lines <<< "$discord_body"
-
-                  all_lines=("$header" "$subheader" "")
-                  all_lines+=("${body_lines[@]}")
-
-                  chunk=""
-                  first_chunk=true
-
-                  flush() {
-                    if [ "$first_chunk" = true ]; then
-                      first_chunk=false
-                    else
-                      echo
-                      echo "---"
-                      echo
-                    fi
-                    echo "$chunk"
-                  }
-
-                  {
-                    for line in "${all_lines[@]}"; do
-                      if [ -z "$chunk" ]; then
-                        candidate="$line"
-                      else
-                        candidate="$chunk"$'\n'"$line"
-                      fi
-                      if [ "${#candidate}" -gt "$discord_limit" ] && [ -n "$chunk" ]; then
-                        flush
-                        chunk="$line"
-                      else
-                        chunk="$candidate"
-                      fi
-                    done
-
-                    if [ -n "$chunk" ]; then
-                      flush
-                    fi
-                  } >> "$GITHUB_STEP_SUMMARY"
+              run: bash rimworld-utils/discord_release_notes.sh >> "$GITHUB_STEP_SUMMARY"
 
             - name: Check for Published File ID
               if: ${{ inputs.upload_to_steam }}
@@ -411,17 +319,6 @@ jobs:
                   itemid=$(<"${{ steps.variables.outputs.mod_path }}/About/PublishedFileId.txt")
                   echo "itemid=$itemid" >> "$GITHUB_OUTPUT"
 
-            - name: Checkout rimworld-utils Repository
-              if: ${{ inputs.upload_to_steam && steps.published_file_id_check.outputs.exists == 'true' }}
-              uses: actions/checkout@v7
-              with:
-                  repository: "ilyvion/rimworld-utils"
-                  path: "rimworld-utils"
-                  sparse-checkout: |
-                      steam_guard.py
-                      steam_workshop_update.py
-                  sparse-checkout-cone-mode: false
-
             # SteamCMD is a 32-bit program, and the runner has no 32-bit libraries
             - name: Install SteamCMD
               if: ${{ inputs.upload_to_steam && steps.published_file_id_check.outputs.exists == 'true' }}
@@ -494,3 +391,25 @@ jobs:
                     args+=(--description-from SteamDescription.txt)
                   fi
                   pipx run rimworld-utils/steam_workshop_update.py "${args[@]}"
+
+            - name: Post Release Notes to Discord
+              if: ${{ inputs.create_release }}
+              shell: bash
+              env:
+                  DISCORD_WEBHOOK_URL: ${{ secrets.ANNOUNCEMENTS_WEBHOOK }}
+                  CHANGELOG_CONTENT: ${{ steps.changelog_reader.outputs.changes }}
+                  VERSION: ${{ steps.variables.outputs.version }}
+                  ABOUT_XML: ${{ steps.variables.outputs.mod_path }}/About/About.xml
+                  ROLE_ID: ${{ inputs.announcement_role_id }}
+              run: |
+                  if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+                    echo "::notice::No ANNOUNCEMENTS_WEBHOOK secret found; skipping the Discord announcement."
+                    exit 0
+                  fi
+
+                  display_name=$(python3 -c 'import sys, xml.etree.ElementTree as ET; print(ET.parse(sys.argv[1]).findtext("name"))' "$ABOUT_XML")
+                  args=(--post --title "$display_name Updated")
+                  if [ -n "$ROLE_ID" ]; then
+                    args+=(--pre-header "<@&$ROLE_ID>")
+                  fi
+                  bash rimworld-utils/discord_release_notes.sh "${args[@]}"
