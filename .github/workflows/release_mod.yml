@@ -206,7 +206,7 @@ jobs:
                       return ""
 
 
-                  text = definition_re.sub(take_definition, text).rstrip("\n")
+                  text = definition_re.sub(take_definition, text).strip("\n")
 
                   # GitHub alert markers render as plain text on Discord
                   alert_emoji = {
