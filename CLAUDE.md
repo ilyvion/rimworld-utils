@@ -113,6 +113,7 @@ Projects are migrating from RimTest Redux to DevTools (SmashPhil). Tell them apa
 ## Launching RimWorld under GABS to run the test suite
 
 - [Launching RimWorld under GABS to run the test suite](gabs.md) — Instructions for launching RimWorld under GABS to run the mod's unit tests (RimTest Redux and DevTools procedures). For full AI-driven game sessions (screenshots, mod inspection, UI investigation, debug-action testing), use the `run` skill instead.
+- Run the test suite on 1.7 only, or on 1.6 if the mod doesn't support 1.7; every other supported version only has to build. The exception is upgrading a mod from 1.6 to 1.7 (the `update-to-17` and `fix-17-warnings` skills), which says which versions to test on.
 - **Never delete, truncate or move `Player.log` or `Test.log` before or after a run.** The launch replaces both. `games_start` can return while the launcher is still building and the old logs are still there, so a wait for an end marker must first see `.savedatafolder/<version>/launch-pending` gone (see gabs.md).
 
 ## Writing tests
