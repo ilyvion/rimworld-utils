@@ -50,7 +50,7 @@ Two behaviours differ from RimTest Redux and can surface after conversion: any l
 
 ## 3. Build: 0 warnings, 0 errors, every supported version
 
-`.vscode/build.sh <version>` for each version in `About.xml` `<supportedVersions>`. `touch` the test `.cs` files before rebuilding so warnings reappear. Expected fixes:
+`OBJ_DIR=obj/agent .vscode/build.sh <version>` for each version in `About.xml` `<supportedVersions>`. `touch` the test `.cs` files before rebuilding so warnings reappear. Expected fixes:
 - CA1852: make fixtures `sealed`.
 - CA1829/CA1826: the script turns `Has.Count(n)` into `.Count()`, so these are usually the bulk (hundreds). Replace `.Count()` with the property the warning names (`Count` or `Length`) at each reported line/column, e.g. with a small script that parses the build log; `.Where(p).Count()` flagged IDE0120 becomes `.Count(p)`.
 - CS8602/CS8604: null-forgiving, or the `if (x == null) return;` guard described in step 2 when it follows a non-throwing null `Expect`. Some appear only in the 1.7 build, since net10.0's BCL has nullable annotations that net48's lacks (e.g. `Enumerable.Count(source)`).
@@ -66,7 +66,7 @@ Warnings are not acceptable to leave.
 
 ## 5. Verify the release split
 
-Simulate CI, for each DevTools version: temporarily delete built `DevTools.dll` and `<Mod>.Tests.*` from `<version>/Assemblies`, run `dotnet build --configuration Release --property RimWorldVersion=<version> <Mod>.sln` (with a `ProjectDependenciesBasePath` that lacks `Third-Party/DevTools` if you want to prove no checkout is needed; it needs symlinks to `ilyvion.Laboratory` and `rimworld-utils` in that directory), confirm it succeeds and neither DLL reappears (warnings from `ilyvion.Laboratory` in that build come from compiling it through the symlink, outside its own `.editorconfig`, and can be ignored; check that none come from the mod's own sources), then rebuild Debug (`.vscode/build.sh <version>`) to restore the dev state.
+Simulate CI, for each DevTools version: temporarily delete built `DevTools.dll` and `<Mod>.Tests.*` from `<version>/Assemblies`, run `dotnet build --configuration Release --property RimWorldVersion=<version> --property BaseIntermediateOutputPath=obj/agent/<version>/ <Mod>.sln` (with a `ProjectDependenciesBasePath` that lacks `Third-Party/DevTools` if you want to prove no checkout is needed; it needs symlinks to `ilyvion.Laboratory` and `rimworld-utils` in that directory), confirm it succeeds and neither DLL reappears (warnings from `ilyvion.Laboratory` in that build come from compiling it through the symlink, outside its own `.editorconfig`, and can be ignored; check that none come from the mod's own sources), then rebuild Debug (`OBJ_DIR=obj/agent .vscode/build.sh <version>`) to restore the dev state.
 
 ## 6. Run the tests
 

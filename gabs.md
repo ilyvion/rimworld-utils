@@ -23,7 +23,7 @@ A `launch-pending` file that stays while `games_status` shows the game stopped m
 
 **Confirm RimTest Redux is present and enabled in the target instance's `ModsConfig.xml`** (e.g. `.savedatafolder/<version>/Config/ModsConfig.xml`), alongside the mod under test itself. Launching with RimTest Redux missing from the active mod list means `[RimTest Redux] TESTING START`/`TESTING END` will never appear (nothing runs the tests), and has been observed to corrupt/reset `ModsConfig.xml` on that launch, losing the previously active mod list. Check the file (or ask the user) before starting the game rather than assuming the last-known mod list is still correct.
 
-The launcher is `gabs-launch.sh`, which runs `.vscode/build.sh <version>` itself before launching, so the mod folder the game loads from is always up to date for the version being launched — no separate build step needed.
+The launcher is `gabs-launch.sh`, which runs `OBJ_DIR=obj/agent .vscode/build.sh <version>` itself before launching, so the mod folder the game loads from is always up to date for the version being launched — no separate build step needed.
 
 ## Running the tests
 

@@ -20,7 +20,7 @@ Ask the user (AskUserQuestion) whenever something is unclear. Do not commit unle
 
 ## 0. Baseline
 
-- Do a clean build of every supported version. `.vscode/build.sh` does an incremental build, so run `dotnet clean <Mod>.sln -p:RimWorldVersion=<version>` before each `.vscode/build.sh <version>`. Pass `SKIP_MOD_FOLDER_REMOVAL=true` to every build after the first so the deployed mod keeps every version's output.
+- Do a clean build of every supported version. `.vscode/build.sh` does an incremental build, so run `rm -rf Source/*/obj/agent/<version>` before each `OBJ_DIR=obj/agent .vscode/build.sh <version>`. Pass `SKIP_MOD_FOLDER_REMOVAL=true` to every build after the first so the deployed mod keeps every version's output.
 - Every version except 1.7 must already have 0 warnings. If one doesn't, tell the user before going on.
 - Save the 1.7 warning list, grouped by warning code. That's the work list.
 

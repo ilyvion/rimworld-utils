@@ -21,8 +21,8 @@ description: "Add RimWorld 1.7 support to a mod project that already builds for 
 
 ## 1. Baseline
 
-- `.vscode/build.sh <version>` for every version in `About/About.xml` `<supportedVersions>`: each must be 0 warnings, 0 errors before you start.
-- `.vscode/build.sh 1.7` and keep the error list; it's your work list for steps 3-4.
+- `OBJ_DIR=obj/agent .vscode/build.sh <version>` for every version in `About/About.xml` `<supportedVersions>`: each must be 0 warnings, 0 errors before you start.
+- `OBJ_DIR=obj/agent .vscode/build.sh 1.7` and keep the error list; it's your work list for steps 3-4.
 - **Integration projects** (ones referencing another mod's assembly, usually from `.deps/refs`; see CLAUDE.md's "Other mods' reference assemblies"): `CS0246` for that mod's namespace plus `MSB3245` mean `.deps/refs` has no assembly for it in a `1.7` or `1.6` folder. If the installed mod ships a `1.7` folder, run `.deps/generate_refs.sh` and `git add -f` its new 1.7 DLL (don't commit). Otherwise the fallback uses its 1.6 assembly. A project with `SupportedRimWorldVersions` that lacks `1.7` doesn't build on 1.7 at all; add `1.7` to it.
 - An integrated mod's 1.7 build can change the IL of a method the integration transpiles. Load its 1.6 and 1.7 DLLs (`load_assembly` with `contextAlias`, e.g. `dti16`/`dti17`) and diff each target with `compare_symbols` `compareMode: "body"`. Changed Unity-stub calls (e.g. `Rect` getters) decompile noisily; look for changes to the instructions the transpiler matches.
 
@@ -104,5 +104,5 @@ Use the `decompiler-mcp` skill. Registered aliases (check with `list_contexts`; 
 ## 5. Verify
 
 - `csharpier format` the changed sources.
-- `.vscode/build.sh <version>` for every version in `About.xml` `<supportedVersions>`, now including 1.7. `touch` changed `.cs` files before rebuilding so warnings reappear. Every version: 0 errors. Every version except 1.7: 0 warnings. 1.7: only the warnings step 3 says to leave alone.
+- `OBJ_DIR=obj/agent .vscode/build.sh <version>` for every version in `About.xml` `<supportedVersions>`, now including 1.7. `touch` changed `.cs` files before rebuilding so warnings reappear. Every version: 0 errors. Every version except 1.7: 0 warnings. 1.7: only the warnings step 3 says to leave alone.
 - Summarize for the user: project-file changes, each 1.7 code branch and why, tests added, the number of 1.7-only warnings left alone (just the count), patches to confirm in game, and anything left for them (e.g. shared-tooling issues, integrations built against another mod's 1.6 assembly). Also list the `.deps/refs` DLLs you force-added. Leave running the game and the tests, and the commit, to the user.

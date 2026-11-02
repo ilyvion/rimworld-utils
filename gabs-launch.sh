@@ -75,7 +75,8 @@
 #
 # Runs .vscode/build.sh $RIMWORLD_VERSION before launching, so the mod
 # folder the game loads from is always up to date for the version being
-# launched. .savedatafolder/<version>/launch-pending exists from the start of the script until just
+# launched. That build uses OBJ_DIR=obj/agent unless OBJ_DIR is already set (see build.sh).
+# .savedatafolder/<version>/launch-pending exists from the start of the script until just
 # before the game is spawned.
 
 set -euo pipefail
@@ -139,7 +140,7 @@ mkdir -p "$SAVE_DIR"
 LAUNCH_PENDING="$SAVE_DIR/launch-pending"
 touch "$LAUNCH_PENDING"
 
-"$PROJECT_DIR/.vscode/build.sh" "$RIMWORLD_VERSION"
+OBJ_DIR="${OBJ_DIR:-obj/agent}" "$PROJECT_DIR/.vscode/build.sh" "$RIMWORLD_VERSION"
 
 RUNNING_TESTS=false
 CONFIG_NAME=UnitTestConfig

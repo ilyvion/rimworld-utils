@@ -55,7 +55,7 @@ Do the same for any integration project that gets a test project.
 
 ## 4. Build: 0 errors, every supported version
 
-- Build with `.vscode/build.sh <version>` for every version in `<supportedVersions>`, using clean builds: delete `Source/*/obj` first, or use `--no-incremental`.
+- Build with `OBJ_DIR=obj/agent .vscode/build.sh <version>` for every version in `<supportedVersions>`, using clean builds: run `rm -rf Source/*/obj/agent/<version>` first.
 - On the DevTools versions, `DevTools.dll` and `<Mod>.Tests.dll` must land in `<version>/Assemblies`.
 - **The one expected warning** is `CS0436` (`IgnoresAccessChecksToAttribute`) in `<Mod>.Tests` on the DevTools versions. It goes away once the test project has its own `Publicize` items. Leave it, and mention it to the user.
 - Any other warning must be fixed. On the other versions the `NoWarn` group must silence `CS0436`, so those builds report `0 Warning(s)`.
@@ -66,9 +66,9 @@ Do the same for any integration project that gets a test project.
 For each DevTools version:
 
 1. Delete `DevTools.dll` and `<Mod>.Tests.dll` from `<version>/Assemblies`.
-2. Run `dotnet build --configuration Release --property RimWorldVersion=<version> <Mod>.sln`.
+2. Run `dotnet build --configuration Release --property RimWorldVersion=<version> --property BaseIntermediateOutputPath=obj/agent/<version>/ <Mod>.sln`.
 3. Confirm the build succeeds and neither DLL reappears.
-4. Rebuild Debug (`.vscode/build.sh <version>`) to restore the dev state. Until `DevTools.dll` is back, the IDE reports `CS0246` on `DevTools.Testing` types.
+4. Rebuild Debug (`OBJ_DIR=obj/agent .vscode/build.sh <version>`) to restore the dev state. Until `DevTools.dll` is back, the IDE reports `CS0246` on `DevTools.Testing` types.
 
 No CI changes are needed: Release builds skip the test project, and a Release restore works without a DevTools checkout.
 

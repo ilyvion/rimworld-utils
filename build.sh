@@ -13,6 +13,11 @@
 # - EXTRA_RW_<major>_<minor>_FILES (e.g. EXTRA_RW_1_7_FILES): Array of additional files to copy when building that version (optional, default: empty)
 # - SKIP_BUILD: If set to true, the build step is skipped (optional, default false)
 # - SKIP_MOD_FOLDER_REMOVAL: If set to true, the target mod folder is not emptied before copying (optional, default false)
+#
+# Read from the environment only, not from the config file:
+# - OBJ_DIR: Folder, relative to each project, that holds intermediate output as <OBJ_DIR>/<version>
+#   (optional, default: obj/<version>, from Common.props). Agents use obj/agent, so they never share
+#   a folder with an IDE; a path under obj/ is already excluded from git and from compilation.
 
 set -euo pipefail
 
@@ -92,9 +97,15 @@ if [[ -e ".deps" ]]; then
     export RimWorldSteamWorkshopFolderPath="$(pwd)/.deps/refs"
 fi
 
+OBJ_DIR_PROPERTY=()
+if [[ -n "${OBJ_DIR:-}" ]]; then
+    OBJ_DIR_PROPERTY=(--property "BaseIntermediateOutputPath=$OBJ_DIR/$RIMWORLD_VERSION/")
+fi
+
 # Build the project
 dotnet build --configuration "$CONFIGURATION" \
     --property "RimWorldVersion=$RIMWORLD_VERSION" \
+    "${OBJ_DIR_PROPERTY[@]}" \
     "$MOD_NAME.sln"
 
 # remove mod folder
