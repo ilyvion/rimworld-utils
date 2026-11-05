@@ -55,7 +55,7 @@ The launcher is `gabs-launch.sh`, which runs `OBJ_DIR=obj/agent .vscode/build.sh
 
 **Filter runs.** While implementing, always run DevTools tests filtered (`testFilter`, e.g. `class == FooTests` or `method == Bar`) to save time. Run the full unfiltered suite only once, as the final regression run before considering an implementation done.
 
-**`testFilter` syntax: join conditions with `||` or `&&` (or `or`/`and`), never a single `|` or `&`.** For several fixtures, write `class == FooTests || class == BarTests`. A single `|` is silently dropped by DevTools' tokenizer, the filter fails to parse, and the run never starts: no `Test.log`, the game doesn't quit, and the wait in step 3 hangs. There are no parentheses, and conditions combine left to right. The full grammar is in devtools.md ("Filter expressions").
+**`testFilter` syntax: join conditions with `|`/`||` or `&`/`&&`, never `or`/`and`.** For several fixtures, write `class == FooTests || class == BarTests`. `&` binds tighter than `|`, and parentheses group. A filter that fails to parse runs nothing: the game quits with exit code 2, no `Test runner finished` line is written, and the wait in step 3 never ends. The full grammar is in devtools.md ("Filter expressions").
 
 Full detail (config, output format, gotchas) is in [devtools.md](devtools.md) ("Verified workflow"). Summary:
 
@@ -67,11 +67,13 @@ Full detail (config, output format, gotchas) is in [devtools.md](devtools.md) ("
    games_start {"gameId": "<game-id>", "launchInputs": {"rimworldVersion": "1.7", "runTests": true}}
    ```
    The result lists `appliedLaunchInputs`; if it doesn't include `runTests`, the input isn't declared in the GABS game config (check with `games_show`). The result code `started_bridge_pending` is expected, since there is no bridge to attach to. `gabs-launch.sh` builds the mod, adds `--pid <packageId>`, writes `Configs/UnitTestConfig.xml`, and launches. The game **quits by itself** at the end of the run; there is nothing to stop afterwards.
+
+   A run short enough to end before `games_start` returns makes it report an error instead: `exited during start (exit code 1)`, followed by the build output. That isn't a launch failure if `launch-pending` is gone and `Test.log` is new and has its end line; read the result from there as usual. A failed test gives exit code 1, and exit code 2 means there was nothing to run (reason in `Player.log`).
 3. **Wait for the end line in `Test.log`.** DevTools writes to `.savedatafolder/<version>/Test.log`, not `Player.log`, and has no `TESTING START/END` markers; `--exit` makes its last line `Test runner finished. Result: Passed|Failed`. The previous run's `Test.log` stays in place until the launcher has finished building, so the wait must first see [`launch-pending`](#launch-pending-when-the-launch-has-got-past-the-build) gone; do not delete the log yourself (see [Never delete, truncate, move or rename `Player.log` or `Test.log`](#never-delete-truncate-move-or-rename-playerlog-or-testlog)). Use a backgrounded shell wait (`run_in_background: true`) that notifies once on match, no sleeps or timeouts:
    ```
    until [ ! -e ".savedatafolder/<version>/launch-pending" ] && grep -q "Test runner finished. Result:" ".savedatafolder/<version>/Test.log" 2>/dev/null; do sleep 2; done
    ```
-   If the launch fails or the run crashes or aborts, the wait never ends; if it seems stuck, check `games_status` (game not running with `launch-pending` still there means the launch failed, usually in the build; game not running with no end line means the run aborted, see `Player.log`).
+   If the launch fails or the run crashes or aborts, the wait never ends; if it seems stuck, check `games_status` (game not running with `launch-pending` still there means the launch failed, usually in the build; game not running with no end line means the run aborted or had nothing to run, see `Player.log`).
 4. **Read the result** from `.savedatafolder/<version>/Test.log`: the last line is `Test runner finished. Result: Passed` or `Result: Failed`. Count tests with `grep -cP '^--\t\[Passed\]' Test.log` and `grep -cP '^--\t\[Failed\]' Test.log`; failure details follow each `[Failed]` line. A missing `Test.log`, or no `Test runner finished` line, means the run did not complete (check `Player.log` for `Unable to register` errors). A logged warning/error during a test fails it; see devtools.md's whitelisting section.
 5. Tests run in the same game process as normal play, so do not use `runTests` when the game must stay running for interactive verification; start it normally (without the input) for that.
 

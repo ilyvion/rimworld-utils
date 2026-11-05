@@ -60,7 +60,7 @@
 #     "testFilter": {
 #       "description": "DevTools filter expression, e.g. class == WithCountTests",
 #       "type": "string",
-#       "pattern": "[A-Za-z0-9_.=!~&| -]+",
+#       "pattern": "[A-Za-z0-9_.=!~&|() \"-]+",
 #       "args": ["--where", "${value}"]
 #     }
 #   }
