@@ -57,8 +57,8 @@ Every project in this repo family imports `../rimworld-utils/Common.props`, whic
 
 The installed game (Steam/Flatpak) is RimWorld 1.7, found at:
 
-- Assemblies (e.g. `Assembly-CSharp.dll`, `UnityStubs.dll`, `Waylith.dll`): directly in the game root, `/home/alex/.var/app/com.valvesoftware.Steam/.steam/steam/steamapps/common/RimWorld`
-- Game data (defs, textures, etc.): `/home/alex/.var/app/com.valvesoftware.Steam/.steam/steam/steamapps/common/RimWorld/Data`
+- Assemblies (e.g. `Assembly-CSharp.dll`, `UnityStubs.dll`, `Waylith.dll`): directly in the game root, `/home/alex/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/RimWorld`
+- Game data (defs, textures, etc.): `/home/alex/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/RimWorld/Data`
 
 Assemblies for older versions of RimWorld (1.3, 1.4, 1.5, 1.6) are in `/home/alex/Documents/Projects/RimWorld/rimworld-utils/Game Assemblies/<version>/`, e.g. `/home/alex/Documents/Projects/RimWorld/rimworld-utils/Game Assemblies/1.6/Assembly-CSharp.dll`. Use these, not the game installation, for anything specific to a version older than 1.7.
 
