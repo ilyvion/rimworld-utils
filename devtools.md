@@ -25,9 +25,9 @@ Subsystems (each is an `IDevTool` registered per running mod, and only if that m
 
 `DevTools.TestAdapter/` is a separate net10.0 project: a VSTest adapter for `dotnet test` and IDE test explorers _(unverified in a live run)_. Discovery launches the game with `--test-discovery=<packageId>` and reads the JSON manifest it writes; execution launches it with `--pid <id> --test --port <port> --session <id> --exit`, the flags for the window mode (`-NoWindow --no-audio` by default) and `--test-file <file>` for a partial run, and receives results over TCP. It reads the `TestRunParameters` `DevTools.PackageId`, `DevTools.RimWorldExePath`, `DevTools.AutoRecacheOnBuild` and `DevTools.WindowMode` (`Windowed`, `Minimized`, `NoWindow` or `Headless`) from the run settings; `Directory.Build.props` points `RunSettingsFilePath` at `.runsettings` in the folder above the repo.
 
-`Test_DevTools/` holds DevTools' own in-game tests (`Test_ExpressionFilter`, `Test_ShuntingYard`), built into `..\1.7\Assemblies\` _(unverified in a live run)_.
+`Test_DevTools/` holds DevTools' own in-game tests (`Test_ExecuteRoutine`, `Test_ExpressionFilter`, `Test_SaveLoad`, `Test_ShuntingYard`, `Test_VanillaLogsAllowed`), built into `..\1.7\Assemblies\` _(unverified in a live run)_.
 
-The `feature/quickactions` (startup actions) and `microbenchmarks` / `parametric-tests` branches are unmerged; `develop` is the default branch and the only one described here.
+The `feature/quickactions` (startup actions), `multiple-pids` (`;`-separated `--pid`, work in progress) and `microbenchmarks` / `parametric-tests` branches are unmerged; `develop` is the default branch and the only one described here.
 
 ## Referencing and discovery
 
@@ -90,15 +90,15 @@ internal class WithCountTests           // NOT static
 
 There is no `[Ignore]`, `[Explicit]`, `[Timeout]`, `[ShouldThrow]`, or `[Values]`. `HideInUI` is internal.
 
-Fixture-level game settings are declared by implementing interfaces on the fixture class (`Testing/Test/Interfaces`): `IWorldGeneration { WorldGenerationSettings WorldGenerationSettings {get;} }`, `IMapGeneration { MapGenerationSettings MapGenerationSettings {get;} }`, `IScenario { Scenario Scenario {get;} }`, `IStoryteller { Storyteller Storyteller {get;} }`. Any of them makes the fixture regenerate the game/map; the environment is restored to default for the next fixture. `MapGenerationSettings` fields: `size` (150), `biome`, `mapGeneratorDef`, `extraGenStepDefs`, `postGenerationActions` (`List<Action>`), `Faction`. The default map is an all-concrete empty map with roofs and non-pawn things cleared (`MapGenerationSettings.Default`, `GenStep_EmptyMap`). `WorldGenerationSettings` fields: `percent` 0.05, `startingSeason` Summer, `startingPawnsRequired`, etc.
+Fixture-level game settings are declared by implementing interfaces on the fixture class (`Testing/Test/Interfaces`): `IWorldGeneration { WorldGenerationSettings WorldGenerationSettings {get;} }`, `IMapGeneration { MapGenerationSettings MapGenerationSettings {get;} }`, `IScenario { Scenario Scenario {get;} }`, `IStoryteller { Storyteller Storyteller {get;} }`. Any of them makes the fixture regenerate the game/map; the environment is restored to default for the next fixture. `MapGenerationSettings` fields: `size` (150), `biome`, `mapGeneratorDef`, `extraGenStepDefs`, `postGenerationActions` (`List<Action>`), `Faction`. The default map is an all-concrete empty map with roofs and non-pawn things cleared (`MapGenerationSettings.Default`, `GenStep_EmptyMap`). Its `MapGeneratorDef` is added to the `DefDatabase` and its unspawned starting pawns are passed to the world (`PassStartingPawnsToWorld`), so a game saved from it loads again. `WorldGenerationSettings` fields: `percent` 0.05, `startingSeason` Summer, `startingPawnsRequired`, etc.
 
 ### Test lifecycle (`TestRunner.TestRoutine`)
 
-1. `LongEventHandler.ExecuteWhenFinished` then a Unity coroutine (`CoroutineObject`) on the main thread; `Application.runInBackground = true` for the duration; one frame skipped.
-2. Seed: `Rand` is fixed (`randSeed` from config or random; `Starting tests with seed: N` is logged).
-3. Per fixture: create instance -> scene change if needed -> `TestType.Playing`: camera jump to map -> pre-test actions (config) -> `[OneTimeSetUp]` -> for each test: (`[SetUp]` -> test -> `[TearDown]`) with retries -> `[OneTimeTearDown]` -> post-test actions -> log fixture results.
-4. Each fixture and each test is wrapped in a `LogWatcher`: **any `Log.Warning`/`Log.Error`/exception logged during it fails the test** unless whitelisted (`[WarningsAllowed]`/`[ErrorsAllowed]` attributes, or the config's `failOnWarnings`/`failOnErrors`, default both `true`, and global `warningsAllowed`/`errorsAllowed` regex lists).
-5. At the end the game returns to the main menu, then `OnTestRunnerEnd`: optional report, and either `Application.Quit` (if `--exit`) or opens the Test Explorer.
+1. `LongEventHandler.ExecuteWhenFinished` then a Unity coroutine (`CoroutineObject`) on the main thread; `Application.runInBackground = true` for the duration; it yields frames until no long event is queued or running (on 1.7 a yield can resume within the same frame, before `Root.uiRoot` exists).
+2. Seed: `Rand` is fixed (`randSeed` from config or random; `Starting tests with seed: N` is logged), with its iteration counter reset to 0, also before each world generation. Each world generation logs `Generating world with string: <seed string>` to `Test.log`.
+3. Per fixture: create instance -> scene change if needed (an exception in it fails the fixture with `Unable to transition scene to <TestType>`, marks its tests `Skipped`, and the next fixture regenerates the default game) -> `TestType.Playing`: camera jump to map -> pre-test actions (config) -> `[OneTimeSetUp]` -> for each test: (`[SetUp]` -> test -> `[TearDown]`) with retries -> `[OneTimeTearDown]` -> post-test actions -> log fixture results.
+4. Each fixture and each test is wrapped in a `LogWatcher`: **any `Log.Warning`/`Log.Error`/exception logged during it fails the test** unless whitelisted (`[WarningsAllowed]`/`[ErrorsAllowed]` attributes, or the config's `failOnWarnings`/`failOnErrors`, default both `true`, and global `warningsAllowed`/`errorsAllowed` regex lists). Some logs the game writes by itself are always allowed (`LogWatcher.VanillaLogsAllowed`): the warnings `A hidden ritual precept was missing, adding: ...` (Ideology active), `Object with load ID Thing_... is referenced ... but is not deep-saved` and `did not find any valid rects to generate ruins in for bounds`, and the error `Faction ... contains ideo ... which was removed!` (Ideology active).
+5. At the end the game returns to the main menu (an exception from `GenScene.GoToMainMenu` is logged as `Exception thrown loading main menu.` and the run still finishes), `Tests finished in <ms> ms with <F> Failed, <P> Passed[, <S> Skipped.]` is written to `Test.log`, then `OnTestRunnerEnd`: optional report, and either `Application.Quit` (if `--exit`) or opens the Test Explorer.
 
 ### Coroutine (multi-tick) tests
 
@@ -253,16 +253,16 @@ Starting tests with seed: {seed}
 ```
 Per fixture (written after the fixture finishes; blank line after each fixture):
 ```
-[Passed]    {FixtureName}
---	[Passed]    {TestName}
---	[Passed]    {TestName(arg1, arg2)}
+[Passed]    {FixtureName} ({ms} ms)
+--	[Passed]    {TestName} ({ms} ms)
+--	[Passed]    {TestName(arg1, arg2)} ({ms} ms)
 <blank>
 ```
-Line = `{Status label}{padding} {Label}`; padding: `[Failed]` + 4 spaces total before the label, `[Passed]` 4, `[NotRun]` 4, `[Canceled]` 2, `[Skipped]` 3, `[Pending]` 3 (the label constants are `[Failed]`, `[Canceled]`, `[Skipped]`, `[Passed]`, `[Pending]`, `[NotRun]`). Function lines are prefixed by `--` + a TAB. Passing lines are written only when `verboseLogging` is true (default). **Failed lines are always written**, followed by a stack trace.
+Line = `{Status label}{padding} {Label} ({ms} ms)`, the duration rounded to whole milliseconds (a fixture's is the sum of its tests'); padding: `[Failed]` + 4 spaces total before the label, `[Passed]` 4, `[NotRun]` 4, `[Canceled]` 2, `[Skipped]` 3, `[Pending]` 3 (the label constants are `[Failed]`, `[Canceled]`, `[Skipped]`, `[Passed]`, `[Pending]`, `[NotRun]`). Function lines are prefixed by `--` + a TAB. Passing lines are written only when `verboseLogging` is true (default). **Failed lines are always written**, followed by a stack trace.
 
 Failed line shape (fixture line and each failing test line):
 ```
-[Failed]    {Label}  {TestContext}  {FailLabel}  {FailMessage}
+[Failed]    {Label} ({ms} ms)  {TestContext}  {FailLabel}  {FailMessage}
 {Exception.ToString()}                      <- only when an exception was thrown
 {StackTrace}                                <- Exception.StackTrace, else the assertion-site StackTrace
 ```
@@ -276,13 +276,13 @@ Failed line shape (fixture line and each failing test line):
 - Skips/cancels via `Test.Skip`/`Test.Cancel` are logged only at verbose level (`[Skipped]`, `[Canceled]`); they are not failures.
 - With `--exit` (see below) the last line written is `Test runner finished. Result: Passed` or `Test runner finished. Result: Failed` (`TestFixtureManager.OnTestRunnerEnd`/`SmokeTestManager.OnTestRunnerEnd`; `Failed` = any fixture status `Failed`). `TestPlanManager.OnTestRunnerEnd` writes a distinct `Test plan finished. Result: Passed|Failed` line instead, for the plan's own overall result — see the `--test-plan` Gotchas bullet for why a plan needs its own marker.
 
-No per-run totals are logged. Counts must be derived by grepping lines, or by a markdown report (below).
+The only per-run totals are the `Tests finished in <ms> ms with <F> Failed, <P> Passed[, <S> Skipped.]` line before the end line, counting the tests that ran (not those of a fixture whose scene change failed). Other counts must be derived by grepping lines, or by a markdown report (below).
 
 ### Machine-friendly mechanisms that exist
 
 | Mechanism | Detail |
 |---|---|
-| **Process exit code** | With `--exit` (or `-NoWindow`), `Application.Quit(1)` if any fixture failed else `Application.Quit(0)` (`TestFixtureManager.cs`, `SmokeTestManager.cs`, `TestPlanManager.cs`), and `Application.Quit(2)` when there is nothing to run (`CommandRunner.NothingToRun`): no loaded mod has the `--pid`, the mod has no tests of the requested kind, the plan name is missing or unknown, the filter doesn't parse, the test file can't be read, or no test matches. Exit code 2 writes no `Test runner finished` line; the reason is a `Log.Error` in `Player.log`. Exit code 0 or 1 is only reached if the runner completes; a crash or an exception escaping the runner coroutine (e.g. a throwing fixture constructor, exceptions during scene change outside handled paths) leaves the game running with no end line. |
+| **Process exit code** | With `--exit` (or `-NoWindow`), `Application.Quit(1)` if any fixture failed else `Application.Quit(0)` (`TestFixtureManager.cs`, `SmokeTestManager.cs`, `TestPlanManager.cs`), and `Application.Quit(2)` when there is nothing to run (`CommandRunner.NothingToRun`): no loaded mod has the `--pid`, the mod has no tests of the requested kind, the plan name is missing or unknown, the filter doesn't parse, the test file can't be read, or no test matches. Exit code 2 writes no `Test runner finished` line; the reason is a `Log.Error` in `Player.log`. Exit code 0 or 1 is only reached if the runner completes; a crash or an exception escaping the runner coroutine (e.g. a throwing fixture constructor) leaves the game running with no end line. |
 | **Auto-run + auto-quit CLI** | `--pid <packageId> --test [--where "<expr>"] --exit` (details below). |
 | **Custom log output** | `ILogWriter` (`PostInit`, `Flush`, `WriteLine(string)`, `Dispose`; public ctor taking `Logger`) chosen via `<log><writer>`; see custom output below. |
 | **Custom report** | `ITestReport.Tabulate(string directoryPath, List<ITestGroup> modules)` via `<log><report>`; built-in `DevTools.Testing.MarkdownReport` writes `<folder>/test-report.md` (UTF-8 with BOM, overwritten each run, only for the unit-test manager, at run end before exit). |
@@ -324,7 +324,7 @@ with `<writer>MyMod.Tests.PlayerLogWriter</writer>`. Failed lines also reach `Lo
 4. Also grep `Player.log` for `Unable to register` / `must have 1 public constructor` / `Unable to fetch parameters` (discovery errors are `Log.Error` in `Player.log`, and a run with zero discovered fixtures produces no `Test.log` results at all: absence of `[Passed]`/`[Failed]` lines with a finished game means nothing ran).
 5. Without `--exit`, the runner ends by opening the Test Explorer window and the game keeps running; the end-of-run line is then **not** written, so only per-fixture lines exist and you cannot detect completion from the log alone. Use `--exit`, a custom `ILogWriter`, or a `MarkdownReport`.
 
-Cases where the summary/end line is missing: run without `--exit`; runner coroutine aborted by an unhandled exception (fixture constructor throws, scene-change exception not routed to `FailTestWhileTransitioning`); game crash or hang; log file over `maxFileSize`; `TestPlan`/`Smoke` managers behave the same for the end line but generate no report.
+Cases where the summary/end line is missing: run without `--exit`; runner coroutine aborted by an unhandled exception (fixture constructor throws); game crash or hang; log file over `maxFileSize`; `TestPlan`/`Smoke` managers behave the same for the end line but generate no report.
 
 ### Verified workflow (GABS launch inputs; RealisticOrbitalTrade, 269 tests)
 
@@ -411,11 +411,11 @@ Note: `Application.Quit` is only called by `--exit` (or `-NoWindow`); `--test` a
 - **Static fixture classes are skipped silently** and abstract classes too; a fixture needs one public instance constructor.
 - **Debugging a failing run:** `Log.Message` output goes to `Player.log`, results to `.savedatafolder/<version>/Test.log`. Log state inside a tick loop only when it changes to see where a value diverges, and remove it before finishing. `Expect.*` doesn't throw, so one run can list several failures; `AreEqual(expected, actual)` prints `Expected <expected> == <actual>`.
 - **Iterating:** run only the fixture you're working on (`testFilter: "class == <Fixture>"`), rebuild before each relaunch (the game loads the built mod), and stop the running game first. The runner exits when done, so `games_start` can report exit code 1 for a failing run; read the result from `Test.log`.
-- **Logged warnings/errors fail tests** (default `failOnWarnings`/`failOnErrors` true; any `Log.Warning`/`Log.Error`/exception on any thread while the fixture/test runs, including from OneTimeSetUp and map generation). RimTest Redux captured them. For code under test that logs intentionally, put `[WarningsAllowed]`/`[ErrorsAllowed]` on that test (see "Whitelisting expected log output").
+- **Logged warnings/errors fail tests** (default `failOnWarnings`/`failOnErrors` true; any `Log.Warning`/`Log.Error`/exception on any thread while the fixture/test runs, including from OneTimeSetUp and map generation), apart from the few logs the game writes by itself listed under "Test lifecycle". RimTest Redux captured them. For code under test that logs intentionally, put `[WarningsAllowed]`/`[ErrorsAllowed]` on that test (see "Whitelisting expected log output").
 - `Expect` failures do not stop the test; keep guarding null-derefs yourself (`Expect.IsNotNull(x); if (x == null) return;`). `Test.Skip`/`Cancel` also do not stop the test.
 - **Only the first unwhitelisted log message is reported** per failing test. A test that logs several distinct unexpected messages shows one per run; grep `Player.log` for all of them before whitelisting.
 - **Name clash with Harmony:** `DevTools.Testing.MethodType` makes `MethodType` ambiguous (CS0104) in test files that also use `HarmonyLib.MethodType` (e.g. `[HarmonyPatch(typeof(T), MethodType.Getter)]`); add `using MethodType = HarmonyLib.MethodType;`.
-- Exceptions thrown by test methods are caught and recorded as failures with the unwrapped inner exception; exceptions in fixture construction or `TestType` transitions are not caught locally and can kill the run without an end line.
+- Exceptions thrown by test methods are caught and recorded as failures with the unwrapped inner exception; an exception in fixture construction is not caught and kills the run without an end line. An exception in a `TestType` transition or save load fails that fixture and skips its tests; the run continues.
 - Parameter limits: at most one parameterised argument per test method/constructor; parameters without a source attribute log an error and the method is not registered (except `[TestCase]`).
 - `[SetUp]`/`[TearDown]` must return `void`; setups run before every test on the shared fixture instance (fixture fields persist across tests of one run; re-run to get a new instance).
 - Ordering: fixtures grouped by `TestType`, then `[ExecutionPriority]`, otherwise dictionary insertion order (assembly type order); tests likewise. Filters keep this order (`TestFilter.MatchesFrom`).
@@ -450,7 +450,7 @@ All public unless noted.
 | `MapUtils.KillEverything(Map)` | destroys all pawns on a map |
 | `ScopeEntity(Thing)`, `ScopeWorldObject(WorldObject)`, `ScopeWindow(Window)` | `using` structs that destroy/close on dispose |
 | `MockGameTicks(int)` / `MockAbsTicks(int)` | temporary `TicksGame` / `gameStartAbsTick` |
-| `RandBlockPersistent(uint seed)` | seed that survives frames |
+| `RandBlockPersistent(uint seed)` | seed that survives frames; resets `Rand`'s iteration counter and restores seed and counter on dispose. Static `CurrentSeed`, `CurrentIterations` (setter internal) |
 | `ScopedMethodHook(MethodInfo original, HarmonyMethod prefix=null, postfix=null, finalizer=null)` | temporary Harmony patch |
 | `ScopedReferenceRollback<T, F>(T instance, string fieldName[, F newValue])` | temporary field override (`T : class`) |
 | `ScopedValueRollback<T>(ref T)` (`T : unmanaged`, unsafe) | restores value on dispose |
@@ -464,7 +464,7 @@ All public unless noted.
 ## Source map (DevTools repo)
 
 - Discovery/entry: `DevTools/DevHarmony.cs`, `DevTools/Testing/Test/TestFixtureManager.cs`, `DevTools/Testing/TestExtensions.cs`
-- Run loop: `DevTools/Testing/TestRunner.cs`, `DevTools/Testing/Test.cs`
+- Run loop: `DevTools/Testing/TestRunner.cs`, `DevTools/Testing/Test.cs`, `DevTools/Testing/Test/GuardedRoutine.cs`
 - Assertions: `DevTools/Testing/Expect.cs`, `DevTools/Testing/MessageBuilder.cs`
 - Logging/reports: `DevTools/DevLog.cs`, `DevTools/Testing/Logging/*.cs`, `DevTools/Testing/LogWatcher.cs`
 - CLI: `DevTools/Testing/CommandRunner.cs`, `DevTools/DevMod.cs` (`--test-discovery`)
