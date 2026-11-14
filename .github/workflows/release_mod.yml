@@ -33,6 +33,11 @@ on:
                 description: "Whether to upload the mod to Steam Workshop"
                 default: true
                 required: false
+            steam_session_repo:
+                type: "string"
+                description: "Private repository (owner/name) the encrypted Steam login sessions are kept in, so releases reuse them instead of authorizing a new device; written with the STEAM_SESSION_TOKEN secret"
+                default: "ilyvion/steam-session"
+                required: false
             announcement_role_id:
                 type: "string"
                 description: "ID of the Discord role to ping in the release announcement; empty pings no role"
@@ -176,6 +181,7 @@ jobs:
                   sparse-checkout: |
                       discord_release_notes.sh
                       steam_guard.py
+                      steam_session.sh
                       steam_workshop_update.py
                   sparse-checkout-cone-mode: false
 
@@ -329,7 +335,30 @@ jobs:
                   steamcmd_dir="$RUNNER_TEMP/steamcmd"
                   mkdir -p "$steamcmd_dir"
                   curl -sSfL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz | tar -xz -C "$steamcmd_dir"
-                  echo "STEAMCMD_DIR=$steamcmd_dir" >> "$GITHUB_ENV"
+                  {
+                    echo "STEAMCMD_DIR=$steamcmd_dir"
+                    echo "STEAM_SCRIPT_SESSION=$RUNNER_TEMP/steam_workshop_update_session.json"
+                    echo "STEAM_SESSION_STATE=$RUNNER_TEMP/steam_session_state"
+                  } >> "$GITHUB_ENV"
+
+            - name: Restore Steam Login Sessions
+              if: ${{ inputs.upload_to_steam && steps.published_file_id_check.outputs.exists == 'true' }}
+              id: steam_session
+              shell: bash
+              env:
+                  GH_TOKEN: ${{ secrets.STEAM_SESSION_TOKEN }}
+                  STEAM_SESSION_REPO: ${{ inputs.steam_session_repo }}
+                  STEAM_USERNAME: ${{ secrets.STEAM_USERNAME }}
+                  STEAM_PASSWORD: ${{ secrets.STEAM_PASSWORD }}
+                  STEAM_TFASEED: ${{ secrets.STEAM_TFASEED }}
+              run: |
+                  if [ -z "$GH_TOKEN" ]; then
+                    echo "enabled=false" >> "$GITHUB_OUTPUT"
+                    echo "::notice title=Steam Session::No STEAM_SESSION_TOKEN secret found, so Steam login sessions aren't kept between releases and each release authorizes a new device."
+                    exit 0
+                  fi
+                  echo "enabled=true" >> "$GITHUB_OUTPUT"
+                  bash rimworld-utils/steam_session.sh restore || echo "::warning title=Steam Session::Restoring the Steam login sessions failed; logging in with the credentials."
 
             - name: Upload to Steam Workshop
               if: ${{ inputs.upload_to_steam && steps.published_file_id_check.outputs.exists == 'true' }}
@@ -359,11 +388,35 @@ jobs:
                   } > "$vdf"
                   cat "$vdf"
 
-                  guard_code=$(python3 rimworld-utils/steam_guard.py)
-                  echo "::add-mask::$guard_code"
-                  if ! "$STEAMCMD_DIR/steamcmd.sh" +@ShutdownOnFailedCommand 1 +@NoPromptForPassword 1 \
-                      +login "$STEAM_USERNAME" "$STEAM_PASSWORD" "$guard_code" \
-                      +workshop_build_item "$vdf" +quit; then
+                  output="$RUNNER_TEMP/steamcmd_output.txt"
+                  steamcmd() {
+                    "$STEAMCMD_DIR/steamcmd.sh" +@ShutdownOnFailedCommand 1 +@NoPromptForPassword 1 \
+                      +login "$@" +workshop_build_item "$vdf" +quit 2>&1 | tee "$output"
+                  }
+
+                  uploaded=false
+                  credential_login=true
+                  if grep -qs '"ConnectCache"' "$HOME/Steam/config/config.vdf"; then
+                    echo "Logging in with SteamCMD's stored session."
+                    if steamcmd "$STEAM_USERNAME"; then
+                      uploaded=true
+                    elif sed 's/\x1b\[[0-9;]*m//g' "$output" | grep -q "^Logging in user .* to Steam Public\.\.\.OK"; then
+                      echo "::error::SteamCMD logged in with the stored session, but the upload failed."
+                      credential_login=false
+                    else
+                      echo "::warning title=Steam Session::SteamCMD couldn't log in with the stored session; logging in with the credentials."
+                    fi
+                  fi
+
+                  if [ "$uploaded" = false ] && [ "$credential_login" = true ]; then
+                    guard_code=$(python3 rimworld-utils/steam_guard.py)
+                    echo "::add-mask::$guard_code"
+                    if steamcmd "$STEAM_USERNAME" "$STEAM_PASSWORD" "$guard_code"; then
+                      uploaded=true
+                    fi
+                  fi
+
+                  if [ "$uploaded" = false ]; then
                     for log in "$HOME"/Steam/logs/{stderr,workshop_log}.txt "$STEAMCMD_DIR"/logs/{stderr,workshop_log}.txt; do
                       if [ -f "$log" ]; then
                         echo "::group::$log"
@@ -386,11 +439,22 @@ jobs:
                   ABOUT_XML: ${{ steps.variables.outputs.mod_path }}/About/About.xml
                   DESCRIPTION_CHANGED: ${{ steps.steam_description.outputs.changed }}
               run: |
-                  args=("$ITEM_ID" --versions-from "$ABOUT_XML")
+                  args=("$ITEM_ID" --versions-from "$ABOUT_XML" --session-file "$STEAM_SCRIPT_SESSION")
                   if [ "$DESCRIPTION_CHANGED" = "true" ]; then
                     args+=(--description-from SteamDescription.txt)
                   fi
                   pipx run rimworld-utils/steam_workshop_update.py "${args[@]}"
+
+            - name: Save Steam Login Sessions
+              if: ${{ always() && steps.steam_session.outputs.enabled == 'true' }}
+              shell: bash
+              env:
+                  GH_TOKEN: ${{ secrets.STEAM_SESSION_TOKEN }}
+                  STEAM_SESSION_REPO: ${{ inputs.steam_session_repo }}
+                  STEAM_USERNAME: ${{ secrets.STEAM_USERNAME }}
+                  STEAM_PASSWORD: ${{ secrets.STEAM_PASSWORD }}
+                  STEAM_TFASEED: ${{ secrets.STEAM_TFASEED }}
+              run: bash rimworld-utils/steam_session.sh save || echo "::warning title=Steam Session::Saving the Steam login sessions failed; the next release may authorize a new device."
 
             - name: Post Release Notes to Discord
               if: ${{ inputs.create_release }}

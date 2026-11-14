@@ -22,6 +22,11 @@ Examples:
     steam_workshop_update.py 2009463077 --description-from MyMod/SteamDescription.txt
     steam_workshop_update.py 2009463077 --add 1.7 --remove 1.3 --dry-run
     steam_workshop_update.py 2009463077 --check-login
+    steam_workshop_update.py 2009463077 --versions-from MyMod/About/About.xml --session-file session.json
+
+With --session-file, the script logs on with the refresh token stored in that file, so it reuses one Steam login
+session instead of authorizing a new device each run. When the file is missing or Steam rejects its token, the script
+logs in with the credentials and writes the new session to the file.
 """
 
 import argparse
@@ -81,6 +86,7 @@ GUARD_EMAIL_CONFIRMATION = 5
 
 PLATFORM_STEAM_CLIENT = 1
 SESSION_EPHEMERAL = 0
+SESSION_PERSISTENT = 1
 OS_WIN11 = 20
 
 ERESULT_OK = 1
@@ -366,10 +372,8 @@ def submit_guard_code(cm, client_id, steamid, shared_secret):
         time.sleep(wait)
 
 
-def authenticate(cm, username, password, shared_secret):
+def authenticate(cm, username, password, shared_secret, persistence):
     """Runs the credential login flow over the CM connection and returns (refresh token, SteamID)."""
-    cm.send(EMSG_CLIENT_HELLO, pb_varint(1, PROTOCOL_VERSION))
-
     rsa_key = cm.call("Authentication.GetPasswordRSAPublicKey#1", pb_string(1, username))
     public_key = rsa.PublicKey(int(pb_text(rsa_key, 1), 16), int(pb_text(rsa_key, 2), 16))
     encrypted_password = base64.b64encode(rsa.encrypt(password.encode("utf-8"), public_key)).decode("ascii")
@@ -386,7 +390,7 @@ def authenticate(cm, username, password, shared_secret):
         + pb_string(3, encrypted_password)
         + pb_varint(4, pb_first(rsa_key, 3, 0))
         + pb_varint(5, 0)
-        + pb_varint(7, SESSION_EPHEMERAL)
+        + pb_varint(7, persistence)
         + pb_string(8, "Unknown")
         + pb_bytes(9, device_details),
     )
@@ -572,21 +576,63 @@ def update_item_in_session(cm, appid, item_id, plan, check_only):
     raise RuntimeError("Steam accepted the update, but reports a description that differs from the one sent.")
 
 
-def update_item(appid, item_id, plan, username, password, shared_secret, check_only=False):
+def read_session(session_file, username):
+    """Returns the session stored in session_file for this account, or None when there isn't a usable one."""
+    if not session_file or not os.path.exists(session_file):
+        return None
+    try:
+        with open(session_file, encoding="utf-8") as f:
+            session = json.load(f)
+        if session["account"].casefold() != username.casefold():
+            print("The stored Steam session belongs to another account; logging in with the credentials.")
+            return None
+        return {"steamid": int(session["steamid"]), "refresh_token": str(session["refresh_token"])}
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
+        print(f"Couldn't read the stored Steam session ({e}); logging in with the credentials.")
+        return None
+
+
+def write_session(session_file, username, steamid, refresh_token):
+    fd = os.open(session_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump({"account": username, "steamid": steamid, "refresh_token": refresh_token}, f)
+
+
+def update_item(appid, item_id, plan, username, password, shared_secret, check_only=False, session_file=None):
     endpoints = fetch_cm_endpoints()
-    for attempt in range(SESSION_ATTEMPTS):
+    session = read_session(session_file, username)
+    attempt = 0
+    while True:
         endpoint = endpoints[attempt % len(endpoints)]
         cm = None
         try:
             cm = CMConnection(endpoint)
-            refresh_token, steamid = authenticate(cm, username, password, shared_secret)
-            cm.logon(refresh_token, steamid, username)
+            cm.send(EMSG_CLIENT_HELLO, pb_varint(1, PROTOCOL_VERSION))
+            if session is not None:
+                try:
+                    cm.logon(session["refresh_token"], session["steamid"], username)
+                    print("Logged in to Steam with the stored session.")
+                except SteamError as e:
+                    if e.eresult in TRANSIENT_ERESULTS:
+                        raise
+                    # Steam closes the connection after a failed logon, so the credential login needs a new one
+                    print(f"Steam rejected the stored session ({e}); logging in with the credentials.")
+                    session = None
+                    continue
+            else:
+                persistence = SESSION_PERSISTENT if session_file else SESSION_EPHEMERAL
+                refresh_token, steamid = authenticate(cm, username, password, shared_secret, persistence)
+                cm.logon(refresh_token, steamid, username)
+                if session_file:
+                    write_session(session_file, username, steamid, refresh_token)
+                session = {"steamid": steamid, "refresh_token": refresh_token}
             update_item_in_session(cm, appid, item_id, plan, check_only)
             cm.log_off()
             return
         except (*NETWORK_ERRORS, SteamError) as e:
+            attempt += 1
             transient = not isinstance(e, SteamError) or e.eresult in TRANSIENT_ERESULTS
-            if not transient or attempt + 1 == SESSION_ATTEMPTS:
+            if not transient or attempt == SESSION_ATTEMPTS:
                 raise
             print(f"Steam CM {endpoint} failed ({e}); trying another server.")
             time.sleep(2)
@@ -621,6 +667,11 @@ def main():
         "--description-from",
         metavar="FILE",
         help="make the item's description match this file (Steam markup, e.g. SteamDescription.txt)",
+    )
+    parser.add_argument(
+        "--session-file",
+        metavar="FILE",
+        help="log on with the session stored in this file, and store the session here after a credential login",
     )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--dry-run", action="store_true", help="show the change without logging in to Steam")
@@ -675,6 +726,7 @@ def main():
             password,
             os.environ.get("STEAM_TFASEED"),
             check_only=args.check_login,
+            session_file=args.session_file,
         )
         return 0
     except (*NETWORK_ERRORS, RuntimeError, SteamError, ElementTree.ParseError, UnicodeDecodeError) as e:
