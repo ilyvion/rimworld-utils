@@ -1,5 +1,5 @@
+# Builds a RimWorld mod and prepares it for release, including uploading to GitHub artifacts.
 name: Build Mod Workflow
-description: This workflow builds a RimWorld mod and prepares it for release, including uploading to GitHub artifacts.
 
 on:
     workflow_call:

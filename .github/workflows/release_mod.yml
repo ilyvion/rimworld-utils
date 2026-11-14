@@ -1,7 +1,6 @@
+# Builds a RimWorld mod and prepares it for release, including creating a GitHub release
+# and uploading the mod to the Steam Workshop.
 name: Release Mod Workflow
-description: >
-    This workflow builds a RimWorld mod and prepares it for release, including creating a
-    GitHub release and uploading the mod to the Steam Workshop.
 
 on:
     workflow_call:
@@ -58,9 +57,11 @@ jobs:
               id: variables
               shell: bash
               run: |
-                  echo "mod_path=./${{ inputs.mod_name }}" >> $GITHUB_OUTPUT
-                  echo "version=${GITHUB_REF/refs\/tags\//}" >> $GITHUB_OUTPUT
-                  echo "no_prefix_version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+                  {
+                    echo "mod_path=./${{ inputs.mod_name }}"
+                    echo "version=${GITHUB_REF/refs\/tags\//}"
+                    echo "no_prefix_version=${GITHUB_REF#refs/tags/v}"
+                  } >> "$GITHUB_OUTPUT"
 
             - name: Checkout Repository
               uses: actions/checkout@v7
